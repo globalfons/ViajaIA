@@ -86,7 +86,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="slug">Identificador (slug)</Label>
-                  <Input id="slug" name="slug" required pattern="[a-z0-9][a-z0-9-]*[a-z0-9]" placeholder="clinica-sol" />
+                  <Input id="slug" name="slug" required pattern="[a-z0-9]([a-z0-9\-]*[a-z0-9])?" placeholder="clinica-sol" />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="plan">Plan</Label>
