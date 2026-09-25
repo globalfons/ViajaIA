@@ -8,7 +8,7 @@ describe("OpenAPI document", () => {
   it("is OpenAPI 3 with bearer auth and all v1 paths", () => {
     expect(doc.openapi).toMatch(/^3\./);
     expect(doc.components.securitySchemes.bearerAuth).toMatchObject({ type: "http", scheme: "bearer" });
-    expect(Object.keys(doc.paths)).toEqual(["/agents", "/agents/{id}", "/agents/{id}/runs", "/runs/{id}/decision", "/workflows", "/workflows/{id}", "/workflows/{id}/runs", "/workflow-runs/{id}", "/usage"]);
+    expect(Object.keys(doc.paths)).toEqual(["/agents", "/agents/{id}", "/agents/{id}/runs", "/runs/{id}/decision", "/workflows", "/workflows/{id}", "/workflows/{id}/runs", "/workflow-runs/{id}", "/knowledge-bases", "/knowledge-bases/{id}/documents", "/knowledge-bases/{id}/search", "/usage"]);
     expect(doc.servers[0]!.url).toBe("https://app.test/api/v1");
   });
 

@@ -1,9 +1,31 @@
-import { advanceWorkflowRun, ConcurrentUpdateError, enqueueJob, type Job, type Queryable, type WorkflowRuntimeOptions } from "@dtn/db";
+import {
+  advanceWorkflowRun,
+  blobStoreFromEnv,
+  ConcurrentUpdateError,
+  createAgentRuntime,
+  enqueueJob,
+  ingestDocument,
+  type BlobStore,
+  type Job,
+  type Queryable,
+  type WorkflowRuntimeOptions,
+} from "@dtn/db";
 
 export type JobHandler = (job: Job, db: Queryable) => Promise<void>;
 
-export function createHandlers(opts: WorkflowRuntimeOptions = {}): Record<string, JobHandler> {
+export interface HandlerOptions extends WorkflowRuntimeOptions {
+  blobs?: BlobStore;
+}
+
+export function createHandlers(opts: HandlerOptions = {}): Record<string, JobHandler> {
+  let blobs = opts.blobs;
   return {
+    "document.ingest": async (job, db) => {
+      blobs ??= blobStoreFromEnv();
+      // Same router as agents: pricing, usage_events and budget checks apply to embeddings too.
+      const { router } = await createAgentRuntime({ db, providers: opts.agentRuntime?.providers });
+      await ingestDocument(db, String(job.payload.documentId ?? ""), { router, blobs, outbound: { allowInsecure: opts.allowInsecureOutbound ?? false }, fetchImpl: opts.fetchImpl });
+    },
     "workflow.advance": async (job, db) => {
       const runId = String(job.payload.runId ?? "");
       try {

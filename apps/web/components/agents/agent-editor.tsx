@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import type { AgentConfig } from "@dtn/core/agents/config";
 import { saveAgentAction, type SaveState } from "@/lib/actions/agents";
 import { Badge } from "@/components/ui/badge";
@@ -67,7 +67,10 @@ export function AgentEditor({
   const [status, setStatus] = useState(initialStatus === "archived" ? "draft" : initialStatus);
   const [schemaText, setSchemaText] = useState(initial.outputSchema ? JSON.stringify(initial.outputSchema, null, 2) : "");
   const [schemaError, setSchemaError] = useState<string | null>(null);
-  const [state, action, pending] = useActionState<SaveState, FormData>(saveAgentAction, {});
+  // Submitted manually (not via <form action>): React 19 resets forms after an
+  // action, which visually unchecks controlled checkboxes after saving.
+  const [state, setState] = useState<SaveState>({});
+  const [pending, startSaving] = useTransition();
   const modelOptions = useMemo(() => [...new Set([c.model, ...models])], [c.model, models]);
   const set = <K extends keyof AgentConfig>(k: K, v: AgentConfig[K]) => setC((prev) => ({ ...prev, [k]: v }));
   const setNested = <K extends "limits" | "guardrails" | "humanApproval" | "memory">(k: K, patch: Partial<AgentConfig[K]>) =>
@@ -91,7 +94,14 @@ export function AgentEditor({
   const httpHosts = ((c.toolConfig.http_get?.allowedHosts as string[] | undefined) ?? []).join("\n");
 
   return (
-    <form action={action} className="space-y-6">
+    <form
+      className="space-y-6"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const data = new FormData(e.currentTarget);
+        startSaving(async () => setState(await saveAgentAction({}, data)));
+      }}
+    >
       <input type="hidden" name="agentId" value={agentId} />
       <input type="hidden" name="config" value={payload} />
       <input type="hidden" name="status" value={status} />

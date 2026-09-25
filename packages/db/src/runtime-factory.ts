@@ -12,6 +12,7 @@ import {
 } from "@dtn/core";
 import type { Queryable } from "./pool";
 import { BudgetGuard, loadPricing, pgUsageSink, recordToolInvocation } from "./usage";
+import { searchKnowledge } from "./knowledge";
 
 export interface RuntimeFactoryOptions {
   db: Queryable;
@@ -39,7 +40,8 @@ export async function createAgentRuntime(opts: RuntimeFactoryOptions) {
   const runtime = new AgentRuntime({
     router,
     tools,
-    retrieve: opts.retrieve,
+    // Default RAG: hybrid search over the agent's knowledge bases, scoped to its org.
+    retrieve: opts.retrieve ?? ((query, kbIds, ctx) => searchKnowledge(opts.db, router, ctx.organizationId, kbIds, query, { ctx })),
     getSecret: opts.getSecret,
     onToolInvocation: (rec, input) =>
       recordToolInvocation(

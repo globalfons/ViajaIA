@@ -10,6 +10,9 @@ un único sistema.
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Arquitectura y módulos |
 | [docs/PHASES.md](docs/PHASES.md) | Estado de cada fase (tests, riesgos, siguiente paso) |
 | [docs/AGENTS.md](docs/AGENTS.md) | Crear y configurar agentes, tools y plantillas |
+| [docs/KNOWLEDGE.md](docs/KNOWLEDGE.md) | Knowledge bases y RAG |
+| [docs/TESTING.md](docs/TESTING.md) | Unit, integración, RLS y E2E |
+| [docs/AUDIT_V2.md](docs/AUDIT_V2.md) | Auditoría verificada del estado real |
 | [docs/WORKFLOWS.md](docs/WORKFLOWS.md) | Workflow Builder, nodos y ejecución |
 | [docs/API.md](docs/API.md) | API v1 (OpenAPI en `/api/openapi.json`) |
 | [docs/SECURITY.md](docs/SECURITY.md) · [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Seguridad y despliegue |

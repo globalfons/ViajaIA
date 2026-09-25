@@ -121,6 +121,36 @@ export function buildOpenApi(serverUrl: string) {
         parameters: [idParam],
         get: { summary: "Run status, output and per-node status", tags: ["Workflows"], "x-scope": "workflows:read", responses: { "200": { description: "Run" }, "404": { description: "Not found", ...json(ref("Error")) }, ...errors } },
       },
+      "/knowledge-bases": {
+        get: { summary: "List knowledge bases with document counts", tags: ["Knowledge"], "x-scope": "knowledge:read", responses: { "200": { description: "Knowledge bases" }, ...errors } },
+      },
+      "/knowledge-bases/{id}/documents": {
+        parameters: [idParam],
+        get: { summary: "List documents (status, size, chunks, errors)", tags: ["Knowledge"], "x-scope": "knowledge:read", responses: { "200": { description: "Documents" }, "404": { description: "Not found", ...json(ref("Error")) }, ...errors } },
+        post: {
+          summary: "Add a document: multipart `file` (PDF, DOCX, TXT, MD, CSV, HTML; max 20 MB) or JSON {url}. Indexed asynchronously.",
+          tags: ["Knowledge"],
+          "x-scope": "knowledge:write",
+          requestBody: {
+            required: true,
+            content: {
+              "multipart/form-data": { schema: { type: "object", properties: { file: { type: "string", format: "binary" } }, required: ["file"] } },
+              "application/json": { schema: { type: "object", properties: { url: { type: "string", format: "uri" } }, required: ["url"] } },
+            },
+          },
+          responses: { "202": { description: "Queued for indexing" }, "402": { description: "Plan limit reached", ...json(ref("Error")) }, "415": { description: "Unsupported media type", ...json(ref("Error")) }, ...errors },
+        },
+      },
+      "/knowledge-bases/{id}/search": {
+        parameters: [idParam],
+        post: {
+          summary: "Hybrid search (semantic + keyword)",
+          tags: ["Knowledge"],
+          "x-scope": "knowledge:read",
+          requestBody: { required: true, ...json({ type: "object", properties: { query: { type: "string" }, k: { type: "integer", minimum: 1, maximum: 20 } }, required: ["query"] }) },
+          responses: { "200": { description: "Ranked fragments" }, ...errors },
+        },
+      },
       "/usage": {
         get: {
           summary: "Usage and cost per day and model",

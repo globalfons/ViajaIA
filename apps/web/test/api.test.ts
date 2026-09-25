@@ -162,6 +162,22 @@ describe.skipIf(!TEST_DATABASE_URL)("API v1", () => {
     expect((await call(import("@/app/api/v1/workflow-runs/[id]/route"), "GET", "/", { key: bKey, params: { id: started.body.run_id } })).status).toBe(404);
   });
 
+  it("knowledge: other tenants get 404 on documents and search even with the right id", async () => {
+    const { createKnowledgeBase, getPool } = await import("@dtn/db");
+    const kb = await createKnowledgeBase(getPool(), orgA, { name: "KB A", embeddingModel: "openai:emb" });
+    const aKey = await key(orgA, ["knowledge:read"]);
+    await db.admin.query("update public.organizations set limits = limits || '{\"requests_per_minute\": 100}' where id = $1", [orgB]);
+    const bKey = await key(orgB, ["knowledge:read"]);
+    const docs = () => import("@/app/api/v1/knowledge-bases/[id]/documents/route");
+    const own = await call(docs(), "GET", "/", { key: aKey, params: { id: kb.id } });
+    expect(own.body, JSON.stringify(own.body)).toMatchObject({ data: [] });
+    expect((await call(docs(), "GET", "/", { key: bKey, params: { id: kb.id } })).status).toBe(404);
+    const search = await call(import("@/app/api/v1/knowledge-bases/[id]/search/route"), "POST", "/", { key: bKey, body: { query: "x" }, params: { id: kb.id } });
+    expect(search.status).toBe(404);
+    const list = await call(import("@/app/api/v1/knowledge-bases/route"), "GET", "/", { key: bKey });
+    expect(list.body.data).toEqual([]);
+  });
+
   it("never called a real provider", () => {
     expect(llmCalls).toBe(1);
   });

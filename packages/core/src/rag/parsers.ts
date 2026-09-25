@@ -73,7 +73,9 @@ export async function parseDocument(kind: DocKind, bytes: Uint8Array, filename =
       const parser = new PDFParse({ data: Buffer.from(bytes) });
       try {
         const res = await parser.getText();
-        return { text: res.text, pages: res.total, metadata: { pages: res.total } };
+        // pdf-parse inserts "-- 1 of 3 --" page separators: drop them.
+        const text = res.text.replace(/^\s*-- \d+ of \d+ --\s*$/gm, "");
+        return { text, pages: res.total, metadata: { pages: res.total } };
       } finally {
         await parser.destroy();
       }

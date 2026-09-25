@@ -41,9 +41,36 @@ await step("create agent from Customer Support template", async () => {
   await page.waitForURL(/\/agents\/[0-9a-f-]{36}/); await page.getByText("Playground").waitFor(); await shot("06-agent-editor");
 });
 await step("save agent config (new version)", async () => { await page.fill("#a-desc", "Atiende dudas"); await page.click("text=Guardar"); await page.getByText(/Guardado \(v2\)/).waitFor(); });
-await step("playground without LLM keys fails gracefully", async () => {
-  await page.fill("textarea[placeholder='Escribe un mensaje…']", "Hola, ¿qué horario tenéis?"); await page.keyboard.press("Enter");
-  await page.getByText(/failed/).first().waitFor({ timeout: 20000 }); await shot("07-playground-nokeys");
+await step("admin adds an embedding model", async () => {
+  await page.goto(B + "/admin"); await page.fill("input[name=model]", "e2e-embeddings"); await page.selectOption("select[name=provider]", "openai");
+  await page.selectOption("select[name=kind]", "embedding"); await page.fill("input[name=embedding_dimensions]", "1536");
+  await page.locator("form", { has: page.locator("input[name=model]") }).locator("button[type=submit]").click();
+  await page.getByText("openai:e2e-embeddings").waitFor();
+});
+await step("create knowledge base and upload a PDF", async () => {
+  await page.goto(B + "/knowledge"); await page.fill("input[name=name]", "Documentación"); await page.selectOption("select[name=embeddingModel]", "openai:e2e-embeddings");
+  await page.getByRole("button", { name: "Crear" }).click(); await page.waitForURL(/\/knowledge\/[0-9a-f-]{36}/);
+  await page.setInputFiles("input[type=file]", "packages/core/test/fixtures/horario.pdf");
+  await page.getByRole("button", { name: "Subir e indexar" }).click(); await page.getByText(/En cola para indexar/).waitFor();
+});
+await step("worker indexes the document (status ready)", async () => {
+  for (let i = 0; i < 20 && !(await page.getByText("ready", { exact: true }).count()); i++) { await page.waitForTimeout(1500); await page.reload(); }
+  await page.getByText("ready", { exact: true }).waitFor({ timeout: 2000 }); await shot("11-knowledge");
+});
+await step("search tester retrieves the right fragment", async () => {
+  await page.fill("input[aria-label=Consulta]", "horario de apertura"); await page.getByRole("button", { name: "Buscar" }).click();
+  await page.getByText(/lunes a viernes/).first().waitFor();
+});
+await step("attach KB to the agent and answer from it with sources", async () => {
+  await page.goto(B + "/agents"); await page.locator("table a").first().click(); await page.waitForURL(/\/agents\/[0-9a-f-]{36}/);
+  await page.getByLabel("Documentación").check(); await page.getByRole("button", { name: "Guardar", exact: true }).click(); await page.getByText(/Guardado \(v/).waitFor();
+  await page.fill("textarea[placeholder='Escribe un mensaje…']", "¿Qué horario tenéis?"); await page.keyboard.press("Enter");
+  await page.getByText(/Según la documentación: .*lunes a viernes/).first().waitFor({ timeout: 20000 });
+  await page.getByText(/Fuentes: \[1\] horario/).waitFor();
+  await page.getByText("completed", { exact: true }).waitFor();
+  if (await page.getByText(/-- 1 of 1 --/).count()) throw new Error("PDF page separator leaked into the answer");
+  if (!(await page.getByLabel("Documentación").isChecked())) throw new Error("KB checkbox shows unchecked after saving");
+  await shot("12-rag-answer");
 });
 await step("create workflow and open builder", async () => {
   await page.goto(B + "/workflows"); await page.fill("input[name=name]", "Flujo prueba"); await page.click("text=Crear y abrir el editor");

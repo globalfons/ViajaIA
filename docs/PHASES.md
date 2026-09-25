@@ -151,3 +151,32 @@ paleta y la validación en vivo, sin errores en consola. Se corrigió la duplica
 - Disparadores automáticos (cron, webhook entrante, eventos de conversación): llegan con canales e integraciones (fases 7-9).
 - La tool list de los nodos TOOL crece con las integraciones (CRM, calendario, email).
 **Siguiente:** Fase 6, RAG / Knowledge Base.
+
+## Auditoría v2 ✅
+Ver [AUDIT_V2.md](AUDIT_V2.md). Stack E2E Supabase-compatible y recorrido en navegador (`pnpm e2e`). 4 defectos reales
+corregidos (email borrado tras un login fallido, `pattern` del slug inválido, carrera de Storage en la migración y, en la
+fase 6, casillas desmarcadas tras guardar el agente).
+
+## Fase 6: RAG / Knowledge ✅
+**Implementado**
+- Parsers PDF/DOCX/CSV/HTML/MD/TXT con verificación por *magic number*; chunking recursivo con solape y secciones Markdown.
+- Migración `0005`: `knowledge_bases`, `documents`, `document_chunks` (pgvector 1536 + HNSW, tsvector + GIN),
+  `app.search_chunks` (**híbrida con RRF**, filtro de organización dentro de la función) y bucket de Storage.
+- `BlobStore` (API REST de Supabase Storage sin SDK; versión en memoria para tests); ingesta idempotente en el worker;
+  límites `max_documents` y `max_storage_mb`; deduplicación SHA-256; borrado y reindexado.
+- **RAG conectado al runtime por defecto**: cualquier agente con knowledge bases recupera contexto de su organización.
+- UI: listado de KBs con métricas, detalle con subida múltiple, URL, tabla (estado/tamaño/fragmentos/fecha/errores) con
+  auto-refresco, reindexar/eliminar y **probador de búsqueda**; selección de KB en el Agent Builder.
+- API v1: `GET /knowledge-bases`, `GET|POST /knowledge-bases/{id}/documents` (multipart o URL, 202) y `POST …/search`.
+
+**Tests:** core 166 · BD 46 (8 de RAG: PDF real + MD + URL, ranking, agente con fuentes, aislamiento, duplicados,
+tipos, límites, fallo de parseo, borrado y uso de embeddings) · worker 6 · web 37 (aislamiento de la API de Knowledge) ·
+**E2E 23/23** (subida de un PDF desde la UI → el worker lo indexa → búsqueda → el agente responde con la fuente,
+salida estructurada `completed`).
+**Doble de pruebas E2E:** `e2e/fake-openai.mjs` imita el formato HTTP de OpenAI (embeddings deterministas; el chat repite el
+primer fragmento recibido). Está marcado como TEST DOUBLE y solo se usa en E2E.
+**Bugs encontrados y corregidos:** separador `-- 1 of 1 --` del parser de PDF en el texto indexado; casillas del editor
+desmarcadas tras guardar (reseteo de formularios de React 19); el proxy de Next truncaría en silencio subidas de más de 10 MB.
+**Riesgos pendientes:** sin OCR para PDFs escaneados (el documento queda `failed` con «No text could be extracted»); la
+dimensión 1536 está fijada por migración.
+**Siguiente:** responsive del dashboard → Conversaciones + AI Customer Support web.

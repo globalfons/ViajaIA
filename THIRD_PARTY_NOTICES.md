@@ -22,6 +22,10 @@ Evaluación completa y alternativas descartadas en [docs/AUDIT.md](docs/AUDIT.md
 | pg (node-postgres) | MIT | Cliente Postgres |
 | undici | MIT | HTTP con protección SSRF |
 | pino | MIT | Logs estructurados |
+| pdf-parse (pdf.js) | Apache-2.0 | Extracción de texto de PDF |
+| mammoth | BSD-2-Clause | DOCX → texto |
+| PapaParse | MIT | CSV |
+| Playwright (dev) | Apache-2.0 | Tests E2E en navegador |
 | zod | MIT | Validación |
 | vitest | MIT | Tests |
 | tsx | MIT | Ejecución TS en el worker |

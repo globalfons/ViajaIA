@@ -12,6 +12,7 @@ describe("parsers", () => {
     const doc = await parseDocument("pdf", fixture("horario.pdf"));
     expect(doc.text).toContain("lunes a viernes de 9 a 14h");
     expect(doc.pages).toBe(1);
+    expect(doc.text).not.toMatch(/-- \d+ of \d+ --/);
   });
 
   it("extracts text from a real DOCX", async () => {

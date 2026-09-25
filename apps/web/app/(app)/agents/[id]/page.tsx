@@ -35,7 +35,7 @@ export default async function AgentPage({
     .maybeSingle();
   if (!agent || agent.status === "archived") notFound();
 
-  const [{ data: models }, { data: versions }, { data: runs }] = await Promise.all([
+  const [{ data: models }, { data: versions }, { data: runs }, { data: kbs }] = await Promise.all([
     supabase.from("llm_models").select("provider, model").eq("kind", "chat").eq("enabled", true),
     supabase.from("agent_versions").select("version, created_at").eq("agent_id", id).eq("organization_id", s.org.id).order("version", { ascending: false }).limit(10),
     supabase
@@ -45,9 +45,9 @@ export default async function AgentPage({
       .eq("organization_id", s.org.id)
       .order("created_at", { ascending: false })
       .limit(10),
+    supabase.from("knowledge_bases").select("id, name").eq("organization_id", s.org.id).order("name"),
   ]);
-  // Knowledge bases arrive in phase 6; the editor hides the section when empty.
-  const knowledgeBases: { id: string; name: string }[] = [];
+  const knowledgeBases = kbs ?? [];
   const config = agentConfigSchema.parse({ ...(agent.config as object), name: agent.name });
   const tools = BUILTIN_TOOLS.map((t) => ({ name: t.name, description: t.description, risk: t.risk, alwaysRequireApproval: Boolean(t.alwaysRequireApproval) }));
   const canEdit = s.can("agents.write");
