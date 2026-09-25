@@ -1,0 +1,40 @@
+# Development stack.
+#
+# Auth, Postgres, Storage and Studio come from the Supabase CLI (`supabase start`),
+# which is the supported way to run Supabase locally. This file only adds our
+# own services on top of it. See docs/DEPLOYMENT.md.
+#
+# Redis is intentionally absent: the job queue and rate limiting run on
+# Postgres (FOR UPDATE SKIP LOCKED) until load justifies another service.
+name: dtn-ai-os
+
+services:
+  web:
+    build: { context: ., dockerfile: docker/web.Dockerfile }
+    env_file: .env
+    environment:
+      APP_ENV: development
+    ports: ["3000:3000"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    restart: unless-stopped
+
+  worker:
+    build: { context: ., dockerfile: docker/worker.Dockerfile }
+    env_file: .env
+    environment:
+      APP_ENV: development
+      SERVICE_NAME: dtn-worker
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    restart: unless-stopped
+
+  # Plain Postgres + pgvector used ONLY by integration/RLS tests
+  # (`docker compose --profile test up -d testdb`). It emulates the minimal
+  # Supabase `auth` schema via supabase/tests/auth-shim.sql.
+  testdb:
+    profiles: ["test"]
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dtn_test
+    ports: ["54329:5432"]
+    tmpfs: ["/var/lib/postgresql/data"]

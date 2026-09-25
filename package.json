@@ -1,0 +1,16 @@
+{
+  "name": "digitalizatusnegocios-ai-os",
+  "private": true,
+  "version": "0.1.0",
+  "description": "DigitalizaTusNegocios AI OS — plataforma multi-tenant de agentes, workflows y RAG",
+  "packageManager": "pnpm@10.33.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "pnpm --filter @dtn/web dev",
+    "dev:worker": "pnpm --filter @dtn/worker dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint"
+  }
+}
