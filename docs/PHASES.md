@@ -44,3 +44,44 @@ sin privilegios para `anon`). `next build` en verde.
 - No hay E2E contra Supabase Auth real (GoTrue): llegará en la fase 12 con `supabase start` en CI.
 - Rate limiting del login: por ahora depende del límite de Supabase Auth; el propio llega en la fase 11.
 **Siguiente:** Fase 3, Agent runtime.
+
+## Fase 3: Agent runtime ✅
+**Implementado**
+- **LLM Router** (`core/llm`): OpenAI, xAI, DeepSeek y OpenRouter (formato Chat Completions), Anthropic Messages y
+  Gemini, con `fetch` directo. Referencias `proveedor:modelo`, reintentos con *backoff* solo en errores reintentables,
+  cadena de *fallback*, *timeout*, *structured output* (JSON Schema; en Anthropic mediante una tool forzada) y embeddings por lotes.
+- **Costes**: los precios salen de `llm_models` (gestionados por el Platform Admin; no se inventan). Los modelos sin
+  precio se marcan como «sin precio».
+- **Uso**: una fila en `usage_events` por llamada (también las fallidas), con organización, agente, workflow, conversación,
+  tokens, coste, latencia y `request_id`.
+- **Presupuesto** (`BudgetGuard`): antes de cada llamada comprueba que la organización esté activa, el coste y los tokens
+  mensuales (plan + override) y el presupuesto mensual del agente.
+- **Agent runtime**: bucle con tools, `maxSteps`, coste máximo por ejecución, *timeout*, memoria (últimos N mensajes),
+  plantillas `{{variable}}`, RAG inyectado como contenido no confiable y citable, y *structured output* con escalado por
+  confianza.
+- **Aprobación humana**: pausa con estado serializable y reanudación (aprobar o rechazar). Si la decisión no corresponde
+  a la tool pendiente, se rechaza.
+- **Tools**: registro con allowlist por agente (lo no permitido es invisible para el modelo y se rechaza si lo llama),
+  validación zod, *timeout*, nivel de riesgo y resultados truncados y redactados. Built-ins: `current_datetime` y `http_get`
+  (este último exige allowlist de hosts por agente).
+- **Guardrails**: detección heurística de *prompt injection* (ES/EN) con modo flag o block, delimitación `<untrusted>`
+  a prueba de cierre prematuro, temas bloqueados, aviso de IA (art. 50 del Reglamento de IA de la UE) y redacción de
+  secretos y PII (DNI/NIE/IBAN/teléfono/email) en logs.
+- **SSRF**: solo HTTPS, bloqueo de IPs privadas/metadata/IPv6 mapeadas/hosts numéricos, validación en el momento de
+  conectar (anti DNS-rebinding con `lookup` propio en undici), redirecciones re-validadas y límite de tamaño y tiempo.
+- Migración `0002_agents_usage.sql`: `llm_models`, `agents` (versionado automático en `agent_versions`), `usage_events`,
+  `tool_invocations`, vista `usage_daily` (`security_invoker`) y `app.month_usage`.
+- **UI**: Usage (coste y tokens frente a límites, por modelo y por agente, últimos errores, aviso de modelos sin precio),
+  Analytics (coste y tokens diarios, 30 días, con tabla accesible), catálogo de Modelos en Platform Admin y KPIs de IA en el Dashboard.
+
+**Tests:** 190 en verde. Core: 119 (proveedores a nivel de *wire format*, router, runtime, guardrails, SSRF, tools, config).
+Web: 20. BD: 30 (añadidos: versionado de agentes, uso atribuido al tenant, usage no falsificable, presupuestos
+mensuales de organización y agente, organización suspendida, todas las vistas con `security_invoker`).
+Ningún test llama a APIs reales (proveedores simulados con `FakeProvider` y `mockFetch`).
+**Tests fallidos:** ninguno.
+**Riesgos pendientes:**
+- La detección de *prompt injection* es heurística: la defensa real es la allowlist + la aprobación humana + no tener
+  secretos en el prompt.
+- Sin *streaming* de respuestas todavía (el playground de la fase 4 usará respuesta completa).
+- La caché de `BudgetGuard` (15 s) permite un pequeño sobreconsumo en ráfagas concurrentes.
+**Siguiente:** Fase 4, Agent Builder (UI + API + playground + plantillas).

@@ -30,6 +30,10 @@ apps/web  ──(JWT usuario, RLS)──►  Supabase Postgres  ◄──(servic
 | `security/rbac` | Matriz de permisos por rol (UI/API); la RLS es la fuente de verdad | 2 |
 | `billing/limits` | Claves de límites, límites efectivos (plan + override) y comprobación | 2 |
 | `llm/*` | LLM Router: proveedores, *fallbacks*, reintentos, *timeouts*, costes y uso | 3 |
+| `agents/*` | Config validada del agente y runtime (tools, límites, aprobación humana, RAG, *structured output*) | 3 |
+| `tools/*` | Registro de tools, allowlist, ejecución con *timeout*; built-ins | 3 |
+| `security/guardrails`, `security/ssrf` | Inyección, redacción, delimitación de contenido no confiable; *outbound* seguro | 3 |
+| `testing/*` | *Fakes* deterministas (LLM, `fetch`) para tests | 3 |
 
 ## Entornos
 
@@ -54,3 +58,14 @@ Platform Admin (profiles.is_platform_admin)
 - Los Server Components usan el cliente Supabase del usuario, así que la RLS aplica siempre.
 - El *service role* solo se usa en acciones de Platform Admin (tras `requirePlatformAdmin`), en webhooks
   verificados y en el worker.
+
+## Flujo de una ejecución de agente
+
+```
+mensaje → sanitizar/limitar → temas bloqueados → detección de inyección → RAG (untrusted, citado)
+       → system prompt (instrucciones + política de seguridad + aviso IA)
+       → [BudgetGuard] → LLM Router (retry/fallback/timeout) → usage_events
+       → ¿tool calls? → allowlist → ¿requiere aprobación? → pausa (estado JSON) / ejecución con timeout
+                     → resultado redactado + <untrusted> → tool_invocations → siguiente paso
+       → respuesta final → redacción de secretos → structured output → ¿confianza baja? → escalado
+```

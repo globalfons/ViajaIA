@@ -24,6 +24,7 @@ describe.skipIf(!TEST_DATABASE_URL)("migrations", () => {
   it("every table with organization_id has a tenant select policy", async () => {
     const { rows } = await db.admin.query(
       `select t.table_name from information_schema.columns t
+       join information_schema.tables bt on bt.table_schema = t.table_schema and bt.table_name = t.table_name and bt.table_type = 'BASE TABLE'
        where t.table_schema = 'public' and t.column_name = 'organization_id'
          and t.table_name <> 'audit_logs'
          and not exists (
@@ -31,6 +32,15 @@ describe.skipIf(!TEST_DATABASE_URL)("migrations", () => {
          )`,
     );
     expect(rows.map((r) => r.table_name)).toEqual([]);
+  });
+
+  it("every view runs with the caller's privileges (security_invoker) so RLS applies", async () => {
+    const { rows } = await db.admin.query(
+      `select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'public' and c.relkind = 'v'
+         and not coalesce(c.reloptions @> array['security_invoker=true'], false)`,
+    );
+    expect(rows.map((r) => r.relname)).toEqual([]);
   });
 
   it("anon has no privileges on tenant tables", async () => {

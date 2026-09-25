@@ -180,3 +180,40 @@ export async function updatePlatformSettings(form: FormData) {
   revalidatePath("/admin");
   redirect(back("/admin", { ok: "settings" }));
 }
+
+const providerEnum = z.enum(["openai", "anthropic", "gemini", "xai", "deepseek", "openrouter"]);
+const price = z.union([z.literal("").transform(() => null), z.coerce.number().min(0).max(100_000)]);
+
+/** Model catalog: which models agents may use and their prices (USD per 1M tokens). */
+export async function upsertModel(form: FormData) {
+  const s = await requirePlatformAdmin();
+  const parsed = z
+    .object({
+      provider: providerEnum,
+      model: z.string().trim().min(1).max(200).regex(/^[A-Za-z0-9._:/@-]+$/),
+      display_name: z.string().trim().max(120).optional(),
+      kind: z.enum(["chat", "embedding"]),
+      input_per_mtok: price,
+      output_per_mtok: price,
+      embedding_dimensions: z.union([z.literal("").transform(() => null), z.coerce.number().int().min(1).max(8192)]),
+      enabled: z.string().optional(),
+    })
+    .safeParse(Object.fromEntries(form));
+  if (!parsed.success) redirect(back("/admin", { error: "Modelo no válido" }));
+  const { enabled, ...rest } = parsed.data;
+  const { error } = await createSupabaseAdminClient()
+    .from("llm_models")
+    .upsert({ ...rest, display_name: rest.display_name || null, enabled: enabled === "on" });
+  if (error) redirect(back("/admin", { error: "No se pudo guardar el modelo" }));
+  await recordAudit({
+    organizationId: null,
+    actorId: s.userId,
+    actorType: "platform_admin",
+    action: "llm_model.upsert",
+    targetType: "llm_models",
+    targetId: `${rest.provider}:${rest.model}`,
+    metadata: { input_per_mtok: rest.input_per_mtok, output_per_mtok: rest.output_per_mtok },
+  });
+  revalidatePath("/admin");
+  redirect(back("/admin", { ok: "saved" }));
+}
