@@ -145,6 +145,23 @@ describe.skipIf(!TEST_DATABASE_URL)("API v1", () => {
     expect((await call(agentsRoute(), "GET", "/api/v1/agents", { key: keys.full })).status).toBe(401);
   });
 
+  it("workflows: start a published run (202), poll it, and deny other tenants", async () => {
+    await db.admin.query("update public.organizations set status = 'active', limits = '{\"requests_per_minute\": 1000}' where id = $1", [orgA]);
+    const { createWorkflow, publishWorkflow } = await import("@dtn/db");
+    const { getPool } = await import("@dtn/db");
+    const wf = await createWorkflow(getPool(), orgA, { name: "API wf" });
+    const wfKey = await key(orgA, ["workflows:read", "workflows:run"]);
+    const notPublished = await call(import("@/app/api/v1/workflows/[id]/runs/route"), "POST", `/api/v1/workflows/${wf.id}/runs`, { key: wfKey, body: { input: {} }, params: { id: wf.id } });
+    expect(notPublished.status).toBe(404);
+    await publishWorkflow(getPool(), orgA, wf.id);
+    const started = await call(import("@/app/api/v1/workflows/[id]/runs/route"), "POST", `/api/v1/workflows/${wf.id}/runs`, { key: wfKey, body: { input: { a: 1 } }, params: { id: wf.id } });
+    expect(started).toMatchObject({ status: 202, body: { status: "queued", version: 1 } });
+    const polled = await call(import("@/app/api/v1/workflow-runs/[id]/route"), "GET", "/", { key: wfKey, params: { id: started.body.run_id } });
+    expect(polled.body.data).toMatchObject({ status: "queued", input: { a: 1 }, nodes: { start: { status: "pending" } } });
+    const bKey = await key(orgB, ["workflows:read"]);
+    expect((await call(import("@/app/api/v1/workflow-runs/[id]/route"), "GET", "/", { key: bKey, params: { id: started.body.run_id } })).status).toBe(404);
+  });
+
   it("never called a real provider", () => {
     expect(llmCalls).toBe(1);
   });

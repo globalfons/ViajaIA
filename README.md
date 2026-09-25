@@ -10,6 +10,7 @@ un único sistema.
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Arquitectura y módulos |
 | [docs/PHASES.md](docs/PHASES.md) | Estado de cada fase (tests, riesgos, siguiente paso) |
 | [docs/AGENTS.md](docs/AGENTS.md) | Crear y configurar agentes, tools y plantillas |
+| [docs/WORKFLOWS.md](docs/WORKFLOWS.md) | Workflow Builder, nodos y ejecución |
 | [docs/API.md](docs/API.md) | API v1 (OpenAPI en `/api/openapi.json`) |
 | [docs/SECURITY.md](docs/SECURITY.md) · [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Seguridad y despliegue |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Convenciones de desarrollo |

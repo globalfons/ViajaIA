@@ -56,3 +56,5 @@ export const runResponse = z.object({
 export const errorResponse = z.object({
   error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }),
 });
+
+export const startWorkflowRunBody = z.object({ input: z.record(z.string(), z.unknown()).optional() });

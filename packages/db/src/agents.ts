@@ -12,6 +12,7 @@ import {
 import type { Queryable } from "./pool";
 import { createAgentRuntime, type RuntimeFactoryOptions } from "./runtime-factory";
 import { OrganizationSuspendedError } from "./usage";
+import { enqueueJob } from "./jobs";
 
 /**
  * Agent service for trusted server code (API routes, worker, playground).
@@ -132,6 +133,8 @@ export interface RunAgentParams {
   runtime?: Omit<RuntimeFactoryOptions, "db">;
   /** Playground may run draft agents; channels/API only active ones. */
   allowInactive?: boolean;
+  workflowRunId?: string;
+  workflowNodeId?: string;
 }
 
 export interface StoredRun {
@@ -152,7 +155,19 @@ async function orgVariables(db: Queryable, organizationId: string): Promise<Reco
   return vars;
 }
 
-async function persistRun(db: Queryable, runId: string | null, p: { organizationId: string; agentId: string; version: number; source: string; input: string | null; userId?: string | null; conversationId?: string | null }, r: AgentRunResult) {
+interface PersistMeta {
+  organizationId: string;
+  agentId: string;
+  version: number;
+  source: string;
+  input: string | null;
+  userId?: string | null;
+  conversationId?: string | null;
+  workflowRunId?: string | null;
+  workflowNodeId?: string | null;
+}
+
+async function persistRun(db: Queryable, runId: string | null, p: PersistMeta, r: AgentRunResult) {
   const values = [
     r.status,
     r.output,
@@ -176,9 +191,10 @@ async function persistRun(db: Queryable, runId: string | null, p: { organization
   }
   const { rows } = await db.query<{ id: string }>(
     `insert into public.agent_runs (organization_id, agent_id, agent_version, source, input, created_by, conversation_id,
+       workflow_run_id, workflow_node_id,
        status, output, structured, state, pending_approval, sources, tool_invocations, usage, flags, error, model)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) returning id`,
-    [p.organizationId, p.agentId, p.version, p.source, p.input, p.userId ?? null, p.conversationId ?? null, ...values],
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) returning id`,
+    [p.organizationId, p.agentId, p.version, p.source, p.input, p.userId ?? null, p.conversationId ?? null, p.workflowRunId ?? null, p.workflowNodeId ?? null, ...values],
   );
   return rows[0]!.id;
 }
@@ -196,6 +212,7 @@ export async function runAgent(params: RunAgentParams): Promise<StoredRun> {
     organizationId,
     agentId: agent.id,
     conversationId: params.conversationId ?? undefined,
+    workflowRunId: params.workflowRunId,
     userId: params.userId ?? undefined,
     config,
     message: params.message,
@@ -205,7 +222,17 @@ export async function runAgent(params: RunAgentParams): Promise<StoredRun> {
   const runId = await persistRun(
     db,
     null,
-    { organizationId, agentId: agent.id, version: agent.version, source: params.source, input: params.message, userId: params.userId, conversationId: params.conversationId },
+    {
+      organizationId,
+      agentId: agent.id,
+      version: agent.version,
+      source: params.source,
+      input: params.message,
+      userId: params.userId,
+      conversationId: params.conversationId,
+      workflowRunId: params.workflowRunId,
+      workflowNodeId: params.workflowNodeId,
+    },
     result,
   );
   return { runId, result };
@@ -224,10 +251,17 @@ export async function resumeAgentRun(params: {
   const { db, organizationId, runId } = params;
   await assertOrgActive(db, organizationId);
   // Lock the row: two reviewers clicking at once must not execute twice.
-  const { rows } = await db.query<{ agent_id: string; state: AgentRunState; pending_approval: { toolCallId: string }; source: string; conversation_id: string | null }>(
+  const { rows } = await db.query<{
+    agent_id: string;
+    state: AgentRunState;
+    pending_approval: { toolCallId: string };
+    source: string;
+    conversation_id: string | null;
+    workflow_run_id: string | null;
+  }>(
     `update public.agent_runs set status = 'running', decided_by = $3, decided_at = now()
      where id = $1 and organization_id = $2 and status = 'needs_approval'
-     returning agent_id, state, pending_approval, source, conversation_id`,
+     returning agent_id, state, pending_approval, source, conversation_id, workflow_run_id`,
     [runId, organizationId, params.userId ?? null],
   );
   const run = rows[0];
@@ -253,6 +287,15 @@ export async function resumeAgentRun(params: {
     throw e;
   }
   await persistRun(db, runId, { organizationId, agentId: agent.id, version: agent.version, source: run.source, input: null }, result);
+  // A workflow node may be waiting for this agent run: wake the workflow.
+  if (run.workflow_run_id) {
+    await enqueueJob(db, {
+      type: "workflow.advance",
+      organizationId,
+      payload: { runId: run.workflow_run_id },
+      dedupeKey: `workflow.advance:${run.workflow_run_id}`,
+    });
+  }
   return { runId, result };
 }
 

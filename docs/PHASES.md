@@ -113,3 +113,41 @@ JSON (201 → 200).
 **Tests fallidos:** ninguno.
 **Riesgos pendientes:** el playground no hace *streaming*; la API aún no expone workflows, knowledge, leads… (fases siguientes).
 **Siguiente:** Fase 5, Workflow Builder.
+
+## Fase 5: Workflow Builder ✅
+**Implementado**
+- **Motor** (`core/workflows`): DAG con START, AGENT, TOOL, CONDITION, PARALLEL, HUMAN APPROVAL, DELAY, WEBHOOK y END.
+  Paralelismo real por oleadas, ramas con propagación de `skipped` (uniones correctas), reintentos con *backoff*
+  exponencial, *timeouts*, `continueOnError`, aprobaciones y delays largos como estados de espera, agentes que esperan su
+  propia aprobación, y estado 100 % JSON.
+- **Validación estructural**: un START, al menos un END, sin ciclos, sin nodos sueltos, handles de rama correctos y datos
+  de cada nodo validados con zod. **Plantillas `{{…}}`** sin `eval` ni acceso a prototipos; secretos `{{secret:X}}`
+  resueltos solo en el servidor y nunca persistidos.
+- Migración `0004`: `workflows`, `workflow_versions` (inmutables), `workflow_runs` (con `state_version` para CAS),
+  `workflow_step_runs` (logs por nodo), `approvals` y la cola `jobs` (con *dedupe*).
+- **Worker real**: bucle de jobs, reintentos con *backoff*, recuperación de jobs huérfanos, scheduler de runs en espera y
+  caducidad de aprobaciones, y apagado ordenado.
+- **UI**: editor visual con React Flow (paleta, panel por tipo de nodo, validación en vivo, guardar versión, publicar,
+  probar borrador o ejecutar la versión publicada, guardar como plantilla), **Automations** (bandeja única de
+  aprobaciones de workflows y de acciones de agentes, más ejecuciones) y detalle de ejecución con estado, intentos, logs y
+  salida por nodo, y cancelación.
+- **API v1**: `GET /workflows`, `GET /workflows/{id}`, `POST /workflows/{id}/runs` (202 asíncrono) y
+  `GET /workflow-runs/{id}`, con OpenAPI actualizado.
+- Workflows como plantillas (sin referencias a agentes del cliente) y "crear desde plantilla".
+
+**Tests:** 235 en verde. Core: 155 (21 del motor: ramas, uniones, paralelismo medido, reintentos, *timeouts*,
+aprobaciones, delays, webhooks con secretos y SSRF, *round-trip* JSON, operadores). Worker: 6 **E2E contra Postgres**
+(lead caliente: agente → condición → aprobación → tool; lead frío con espera de un día y scheduler; fallo explícito;
+*dedupe*; organización suspendida; publicación con agente de otro tenant rechazada). Web: 36 (incluye la API de workflows).
+BD: 38.
+**Verificación visual:** el editor se renderizó en Chromium (Playwright) con un grafo real, se probaron la selección, la
+paleta y la validación en vivo, sin errores en consola. Se corrigió la duplicación de etiquetas en las ramas.
+**Bugs encontrados y corregidos gracias a los tests:**
+1. El motor redactaba PII en las salidas de las tools y rompía el paso de datos entre nodos. Ahora el estado solo redacta
+   secretos (`redactSecretsDeep`); la PII sigue protegida por la RLS.
+2. Tras un fallo, los nodos posteriores quedaban `pending` en lugar de `skipped`.
+**Tests fallidos:** ninguno.
+**Riesgos pendientes:**
+- Disparadores automáticos (cron, webhook entrante, eventos de conversación): llegan con canales e integraciones (fases 7-9).
+- La tool list de los nodos TOOL crece con las integraciones (CRM, calendario, email).
+**Siguiente:** Fase 6, RAG / Knowledge Base.

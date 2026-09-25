@@ -12,3 +12,6 @@ export * from "./tools/builtin";
 export * from "./agents/config";
 export * from "./agents/runtime";
 export * from "./templates/agent-templates";
+export * from "./workflows/schema";
+export * from "./workflows/template";
+export * from "./workflows/engine";

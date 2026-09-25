@@ -34,6 +34,8 @@ apps/web  ──(JWT usuario, RLS)──►  Supabase Postgres  ◄──(servic
 | `tools/*` | Registro de tools, allowlist, ejecución con *timeout*; built-ins | 3 |
 | `security/guardrails`, `security/ssrf` | Inyección, redacción, delimitación de contenido no confiable; *outbound* seguro | 3 |
 | `testing/*` | *Fakes* deterministas (LLM, `fetch`) para tests | 3 |
+| `templates/*` | Plantillas de agente (productos) | 4 |
+| `workflows/*` | Schema y validación del grafo, plantillas `{{…}}` y motor de ejecución | 5 |
 
 ## Entornos
 

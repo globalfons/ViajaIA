@@ -67,3 +67,14 @@ describe("misc", () => {
     expect(matchBlockedTopic("hola", ["politica"])).toBeNull();
   });
 });
+
+describe("redactSecretsDeep", () => {
+  it("keeps personal data flowing but removes secrets", async () => {
+    const { redactSecretsDeep } = await import("../src/security/guardrails");
+    expect(redactSecretsDeep({ email: "ana@x.es", token: "abc", note: "key sk-proj-abcdefghijklmnopqrstuv" })).toEqual({
+      email: "ana@x.es",
+      token: "[REDACTED]",
+      note: "key [REDACTED_SECRET]",
+    });
+  });
+});

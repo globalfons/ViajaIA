@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { agentConfigSchema } from "@dtn/core/agents/config";
-import { agentResponse, createAgentBody, decisionBody, errorResponse, runAgentBody, runResponse, updateAgentBody } from "./schemas";
+import { agentResponse, createAgentBody, decisionBody, errorResponse, runAgentBody, runResponse, startWorkflowRunBody, updateAgentBody } from "./schemas";
 
 const schema = (s: z.ZodType) => {
   const out = z.toJSONSchema(s, { target: "openapi-3.0", unrepresentable: "any", io: "input" }) as Record<string, unknown>;
@@ -44,6 +44,7 @@ export function buildOpenApi(serverUrl: string) {
         RunAgent: schema(runAgentBody),
         Decision: schema(decisionBody),
         Run: schema(runResponse),
+        StartWorkflowRun: schema(startWorkflowRunBody),
       },
     },
     paths: {
@@ -98,6 +99,27 @@ export function buildOpenApi(serverUrl: string) {
           requestBody: { required: true, ...json(ref("Decision")) },
           responses: { "200": { description: "Run result after the decision", ...json(ref("Run")) }, "404": { description: "No pending run", ...json(ref("Error")) }, ...errors },
         },
+      },
+      "/workflows": {
+        get: { summary: "List workflows", tags: ["Workflows"], "x-scope": "workflows:read", responses: { "200": { description: "Workflows" }, ...errors } },
+      },
+      "/workflows/{id}": {
+        parameters: [idParam],
+        get: { summary: "Get a workflow and its published graph", tags: ["Workflows"], "x-scope": "workflows:read", responses: { "200": { description: "Workflow" }, "404": { description: "Not found", ...json(ref("Error")) }, ...errors } },
+      },
+      "/workflows/{id}/runs": {
+        parameters: [idParam],
+        post: {
+          summary: "Start a run of the published version (asynchronous)",
+          tags: ["Workflows"],
+          "x-scope": "workflows:run",
+          requestBody: { required: false, ...json(ref("StartWorkflowRun")) },
+          responses: { "202": { description: "Queued: poll /workflow-runs/{id}" }, "404": { description: "Workflow not published", ...json(ref("Error")) }, ...errors },
+        },
+      },
+      "/workflow-runs/{id}": {
+        parameters: [idParam],
+        get: { summary: "Run status, output and per-node status", tags: ["Workflows"], "x-scope": "workflows:read", responses: { "200": { description: "Run" }, "404": { description: "Not found", ...json(ref("Error")) }, ...errors } },
       },
       "/usage": {
         get: {

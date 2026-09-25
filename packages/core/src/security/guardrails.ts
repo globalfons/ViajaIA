@@ -97,19 +97,32 @@ export function redactPII(text: string): string {
   return out;
 }
 
-/** Deep-redacts secrets and PII in a JSON-like value (for tool invocation logs). */
-export function redactValue(value: unknown, depth = 0): unknown {
+const SENSITIVE_KEY = /pass(word)?|secret|token|api[_-]?key|authorization|cookie/i;
+
+function deepRedact(value: unknown, pii: boolean, depth: number): unknown {
   if (depth > 8) return "[TRUNCATED]";
-  if (typeof value === "string") return redactPII(redactSecrets(value)).slice(0, 4000);
-  if (Array.isArray(value)) return value.slice(0, 100).map((v) => redactValue(v, depth + 1));
+  if (typeof value === "string") return (pii ? redactPII(redactSecrets(value)) : redactSecrets(value)).slice(0, pii ? 4000 : 100_000);
+  if (Array.isArray(value)) return value.slice(0, pii ? 100 : 10_000).map((v) => deepRedact(v, pii, depth + 1));
   if (value && typeof value === "object") {
     const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value)) {
-      out[k] = /pass(word)?|secret|token|api[_-]?key|authorization|cookie/i.test(k) ? "[REDACTED]" : redactValue(v, depth + 1);
-    }
+    for (const [k, v] of Object.entries(value)) out[k] = SENSITIVE_KEY.test(k) ? "[REDACTED]" : deepRedact(v, pii, depth + 1);
     return out;
   }
   return value;
+}
+
+/** Deep-redacts secrets AND personal data. For logs/analytics (tool invocation logs). */
+export function redactValue(value: unknown): unknown {
+  return deepRedact(value, true, 0);
+}
+
+/**
+ * Deep-redacts secrets only. For tenant data that must keep flowing between
+ * steps (workflow state): personal data is protected by RLS, secrets must
+ * never be persisted at all.
+ */
+export function redactSecretsDeep(value: unknown): unknown {
+  return deepRedact(value, false, 0);
 }
 
 /** Strips control characters (except newlines/tabs) and bounds length. */

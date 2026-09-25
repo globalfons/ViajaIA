@@ -8,7 +8,7 @@
     "start": "tsx src/index.ts",
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
@@ -18,7 +18,10 @@
   },
   "devDependencies": {
     "@types/node": "^22.20.4",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "zod": "^4.6.5"
   }
 }
