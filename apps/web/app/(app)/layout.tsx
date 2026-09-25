@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { AppShell } from "@/components/layout/app-shell";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { SetupChecklist } from "@/components/setup-checklist";
@@ -30,19 +31,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const session = await requireSession();
   const brand = resolveBrand(session.org);
   return (
-    <div className="flex min-h-screen" style={brand.cssVars as CSSProperties}>
-      <Sidebar brandName={brand.name} logoUrl={brand.logoUrl} isPlatformAdmin={session.isPlatformAdmin} />
-      <div className="flex h-screen flex-1 flex-col">
-        <Topbar
-          org={session.org}
-          organizations={session.organizations}
-          email={session.email}
-          isPlatformAdmin={session.isPlatformAdmin}
-        />
-        <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-7xl p-6 lg:p-8">{children}</div>
-        </main>
-      </div>
-    </div>
+    <AppShell
+      style={brand.cssVars as CSSProperties}
+      sidebar={{ brandName: brand.name, logoUrl: brand.logoUrl, isPlatformAdmin: session.isPlatformAdmin }}
+      topbar={<Topbar org={session.org} organizations={session.organizations} email={session.email} isPlatformAdmin={session.isPlatformAdmin} />}
+    >
+      {children}
+    </AppShell>
   );
 }

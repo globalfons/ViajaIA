@@ -9,7 +9,7 @@ export function OrgSelect({ current, options }: { current: string; options: { id
       name="organizationId"
       defaultValue={current}
       aria-label="Organización activa"
-      className="w-56"
+      className="w-40 sm:w-56"
       onChange={(e) => e.currentTarget.form?.requestSubmit()}
     >
       {options.map((o) => (

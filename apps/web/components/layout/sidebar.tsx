@@ -43,16 +43,18 @@ export interface SidebarProps {
   brandName: string;
   logoUrl?: string | null;
   isPlatformAdmin?: boolean;
+  className?: string;
+  onNavigate?: () => void;
 }
 
-export function Sidebar({ brandName, logoUrl, isPlatformAdmin }: SidebarProps) {
+export function Sidebar({ brandName, logoUrl, isPlatformAdmin, className, onNavigate }: SidebarProps) {
   const pathname = usePathname();
-  const items = isPlatformAdmin
-    ? [...NAV_ITEMS, { href: "/admin", label: "Platform Admin", icon: "Shield", ready: true, phase: 2 }]
-    : NAV_ITEMS;
+  // Clients only see modules that work; the agency sees the roadmap too.
+  const visible = isPlatformAdmin ? NAV_ITEMS : NAV_ITEMS.filter((i) => i.ready);
+  const items = isPlatformAdmin ? [...visible, { href: "/admin", label: "Platform Admin", icon: "Shield", ready: true, phase: 2 }] : visible;
 
   return (
-    <aside className="flex h-screen w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground">
+    <aside className={cn("flex h-full w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground lg:w-60", className)}>
       <div className="flex h-14 items-center gap-2 px-4">
         {logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -86,6 +88,7 @@ export function Sidebar({ brandName, logoUrl, isPlatformAdmin }: SidebarProps) {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onNavigate}
               className={cn(
                 "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
                 active ? "bg-white/10 text-white" : "text-sidebar-muted hover:bg-white/5 hover:text-white",

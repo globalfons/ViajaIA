@@ -20,18 +20,18 @@ export function Topbar({
   const options = [...organizations];
   if (org && !options.some((o) => o.id === org.id)) options.unshift(org);
   return (
-    <header className="flex h-14 items-center justify-between gap-4 border-b bg-card px-6">
-      <div className="flex items-center gap-3">
+    <header className="flex h-14 items-center justify-between gap-2 px-2 sm:gap-4 sm:px-6">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         {options.length > 0 ? (
           <form action={switchOrganization}>
             <OrgSelect current={org?.id ?? ""} options={options.map((o) => ({ id: o.id, name: o.name }))} />
           </form>
         ) : null}
         {org?.status === "suspended" ? <Badge variant="danger">Suspendida</Badge> : null}
-        {org && !org.role && isPlatformAdmin ? <Badge variant="warning">Vista de administrador</Badge> : null}
+        {org && !org.role && isPlatformAdmin ? <Badge variant="warning" className="hidden sm:inline-flex">Vista de administrador</Badge> : null}
       </div>
       <div className="flex items-center gap-3 text-sm text-muted-foreground">
-        {isPlatformAdmin ? <Badge>Platform admin</Badge> : null}
+        {isPlatformAdmin ? <Badge className="hidden md:inline-flex">Platform admin</Badge> : null}
         <span className="hidden sm:inline">{email}</span>
         <form action={signOut}>
           <Button variant="ghost" size="icon" aria-label="Cerrar sesión" type="submit">
