@@ -15,6 +15,9 @@ import {
 } from "@/lib/actions/settings";
 import { parseBranding } from "@/lib/branding";
 import { requireOrg } from "@/lib/session";
+import { API_SCOPES } from "@dtn/db/agents";
+import { ApiKeyForm } from "@/components/api-key-form";
+import { revokeApiKeyAction } from "@/lib/actions/api-keys";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
 
@@ -22,7 +25,7 @@ export const metadata = { title: "Settings" };
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const [s, sp, supabase] = await Promise.all([requireOrg("org.read"), searchParams, createSupabaseServerClient()]);
-  const [{ data: members }, { data: invitations }] = await Promise.all([
+  const [{ data: members }, { data: invitations }, { data: apiKeys }] = await Promise.all([
     supabase.from("memberships").select("user_id, role, profiles(email, full_name)").eq("organization_id", s.org.id),
     s.can("members.invite")
       ? supabase
@@ -31,6 +34,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           .eq("organization_id", s.org.id)
           .is("accepted_at", null)
       : Promise.resolve({ data: [] as { id: string; email: string; role: string; expires_at: string }[] }),
+    s.can("api_keys.manage")
+      ? supabase
+          .from("api_keys")
+          .select("id, name, prefix, scopes, last_used_at, expires_at, revoked_at, created_at")
+          .eq("organization_id", s.org.id)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] as { id: string; name: string; prefix: string; scopes: string[]; last_used_at: string | null; expires_at: string | null; revoked_at: string | null; created_at: string }[] }),
   ]);
   const branding = parseBranding(s.org.branding);
   const canEdit = s.can("org.update");
@@ -208,6 +218,59 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             ) : null}
           </CardContent>
         </Card>
+        {s.can("api_keys.manage") ? (
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>API keys</CardTitle>
+              <CardDescription>
+                Acceso a la API v1 para esta organización. Documentación: <code>/api/openapi.json</code>.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <ApiKeyForm scopes={API_SCOPES} />
+              {apiKeys?.length ? (
+                <Table>
+                  <THead>
+                    <TR>
+                      <TH>Nombre</TH>
+                      <TH>Clave</TH>
+                      <TH>Permisos</TH>
+                      <TH>Último uso</TH>
+                      <TH />
+                    </TR>
+                  </THead>
+                  <TBody>
+                    {apiKeys.map((k) => {
+                      const expired = k.expires_at && new Date(k.expires_at) < new Date();
+                      return (
+                        <TR key={k.id}>
+                          <TD>{k.name}</TD>
+                          <TD className="font-mono text-xs">{k.prefix}…</TD>
+                          <TD className="max-w-xs text-xs text-muted-foreground">{k.scopes.join(", ")}</TD>
+                          <TD className="text-xs text-muted-foreground">{k.last_used_at ? formatDate(k.last_used_at) : "nunca"}</TD>
+                          <TD className="text-right">
+                            {k.revoked_at ? (
+                              <Badge variant="secondary">revocada</Badge>
+                            ) : expired ? (
+                              <Badge variant="secondary">caducada</Badge>
+                            ) : (
+                              <form action={revokeApiKeyAction}>
+                                <input type="hidden" name="id" value={k.id} />
+                                <Button type="submit" size="sm" variant="ghost">
+                                  Revocar
+                                </Button>
+                              </form>
+                            )}
+                          </TD>
+                        </TR>
+                      );
+                    })}
+                  </TBody>
+                </Table>
+              ) : null}
+            </CardContent>
+          </Card>
+        ) : null}
       </div>
     </>
   );

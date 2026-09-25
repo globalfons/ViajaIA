@@ -11,3 +11,4 @@ export * from "./tools/registry";
 export * from "./tools/builtin";
 export * from "./agents/config";
 export * from "./agents/runtime";
+export * from "./templates/agent-templates";

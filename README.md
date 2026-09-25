@@ -9,6 +9,9 @@ un único sistema.
 | [docs/AUDIT.md](docs/AUDIT.md) | Fase 0: auditoría OSS, licencias, riesgos y plan |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Arquitectura y módulos |
 | [docs/PHASES.md](docs/PHASES.md) | Estado de cada fase (tests, riesgos, siguiente paso) |
+| [docs/AGENTS.md](docs/AGENTS.md) | Crear y configurar agentes, tools y plantillas |
+| [docs/API.md](docs/API.md) | API v1 (OpenAPI en `/api/openapi.json`) |
+| [docs/SECURITY.md](docs/SECURITY.md) · [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Seguridad y despliegue |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Convenciones de desarrollo |
 | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Componentes de terceros y licencias |
 

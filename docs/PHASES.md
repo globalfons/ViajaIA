@@ -85,3 +85,31 @@ Ningún test llama a APIs reales (proveedores simulados con `FakeProvider` y `mo
 - Sin *streaming* de respuestas todavía (el playground de la fase 4 usará respuesta completa).
 - La caché de `BudgetGuard` (15 s) permite un pequeño sobreconsumo en ráfagas concurrentes.
 **Siguiente:** Fase 4, Agent Builder (UI + API + playground + plantillas).
+
+## Fase 4: Agent Builder ✅
+**Implementado**
+- **Plantillas integradas** (`core/templates`): Customer Support, Receptionist, Sales Agent, Lead Qualification
+  (BANT + puntuación), Document/RAG Assistant, Internal Knowledge, Appointment, Marketing, WhatsApp y Voice, con
+  requisitos pendientes indicados. El Sales Agent prohíbe expresamente iniciar contactos no solicitados.
+- **Create from Template**: galería con plantillas integradas, de la agencia (globales) y del cliente, más «en blanco».
+- **Editor de agentes**: prompt, modelo y fallbacks, temperatura, allowlist de tools con aprobación por tool, hosts para
+  `http_get`, memoria, guardrails, aprobación y escalado, límites y structured output (JSON Schema validado).
+- **Playground**: chat con estado, modelo, tokens, coste, pasos, tools, fuentes, salida estructurada, aviso de inyección
+  y **aprobación o rechazo de acciones**. El estado pausado vive en el servidor (`agent_runs.state`, sin permiso de lectura
+  para los usuarios) y se reanuda de forma atómica (sin doble ejecución).
+- Versionado con restauración, archivado y **Guardar como plantilla** (de la organización o global de la agencia).
+- Migración `0003`: `templates` (RLS: globales solo para el Platform Admin), `agent_runs`, `api_keys` (hash, scopes,
+  caducidad, solo se puede revocar) y `rate_limits` + `app.rate_limit_hit`.
+- **API v1** con OpenAPI 3 generado desde zod: agentes (CRUD), ejecuciones, decisiones de aprobación y uso.
+  Autenticación por API key, scopes, rate limit por plan, errores tipados y `x-request-id`.
+- Gestión de API keys en Settings (se muestra una sola vez; revocación).
+
+**Tests:** 264 en verde. Core: 131. Web: 35, incluidos **11 tests de API** con rutas reales, Postgres real y un servidor
+local con formato OpenAI (401/403/402/404/415/429, aislamiento entre tenants, versión y archivado, uso registrado).
+BD: 38 (servicio de agentes, **aprobación concurrente ejecutada una sola vez**, API keys, rate limit, RLS de plantillas
+y del estado de ejecución).
+**Bug encontrado y corregido gracias a los tests:** las respuestas `Response` de los handlers se serializaban como
+JSON (201 → 200).
+**Tests fallidos:** ninguno.
+**Riesgos pendientes:** el playground no hace *streaming*; la API aún no expone workflows, knowledge, leads… (fases siguientes).
+**Siguiente:** Fase 5, Workflow Builder.
