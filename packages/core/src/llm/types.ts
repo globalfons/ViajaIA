@@ -23,7 +23,7 @@ export const PROVIDER_IDS: readonly ProviderId[] = [
 /** A model reference in the form "provider:model", e.g. "anthropic:claude-sonnet-5". */
 export type ModelRef = `${ProviderId}:${string}`;
 
-export type Role = "system" | "user" | "assistant" | "tool";
+export type MessageRole = "system" | "user" | "assistant" | "tool";
 
 export interface ToolCall {
   id: string;

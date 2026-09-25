@@ -1,44 +1,44 @@
-import { CheckCircle2, CircleAlert, CircleDashed } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getSystemStatus } from "@/lib/system-status";
+import { Flash } from "@/components/flash";
+import { SetupChecklist } from "@/components/setup-checklist";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { requireOrg } from "@/lib/session";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-export default function DashboardPage() {
-  const status = getSystemStatus();
-  const missingRequired = status.filter((s) => s.required && !s.configured);
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const [s, sp, supabase] = await Promise.all([requireOrg(), searchParams, createSupabaseServerClient()]);
+  const [{ count: members }, { count: projects }] = await Promise.all([
+    supabase.from("memberships").select("user_id", { count: "exact", head: true }).eq("organization_id", s.org.id),
+    supabase.from("projects").select("id", { count: "exact", head: true }).eq("organization_id", s.org.id),
+  ]);
+
+  const kpis = [
+    { label: "Usuarios", value: members ?? 0 },
+    { label: "Proyectos", value: projects ?? 0 },
+  ];
 
   return (
     <>
-      <PageHeader title="Dashboard" description="Estado de la plataforma y actividad de tus clientes." />
-      <Card>
-        <CardHeader>
-          <CardTitle>Configuración del sistema</CardTitle>
-          <CardDescription>
-            {missingRequired.length === 0
-              ? "Todos los servicios obligatorios están configurados."
-              : `Faltan ${missingRequired.length} servicios obligatorios. Consulta .env.example y docs/DEPLOYMENT.md.`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ul className="divide-y">
-            {status.map((s) => (
-              <li key={s.key} className="flex items-center gap-3 py-2 text-sm">
-                {s.configured ? (
-                  <CheckCircle2 className="h-4 w-4 text-success" />
-                ) : s.required ? (
-                  <CircleAlert className="h-4 w-4 text-danger" />
-                ) : (
-                  <CircleDashed className="h-4 w-4 text-muted-foreground" />
-                )}
-                <span className="flex-1">{s.label}</span>
-                <code className="hidden text-xs text-muted-foreground md:block">{s.hint}</code>
-              </li>
-            ))}
-          </ul>
-        </CardContent>
-      </Card>
+      <PageHeader title="Dashboard" description={`Resumen de ${s.org.name}`} />
+      <Flash ok={sp.ok} error={sp.error} />
+      {s.org.status === "suspended" ? (
+        <div className="mb-6 rounded-md border border-danger/30 bg-danger/5 p-4 text-sm text-danger">
+          Esta organización está suspendida. Contacta con tu proveedor para reactivarla.
+        </div>
+      ) : null}
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {kpis.map((k) => (
+          <Card key={k.label}>
+            <CardHeader>
+              <CardDescription>{k.label}</CardDescription>
+              <CardTitle className="text-2xl">{k.value}</CardTitle>
+            </CardHeader>
+          </Card>
+        ))}
+      </div>
+      {s.isPlatformAdmin ? <SetupChecklist /> : null}
     </>
   );
 }

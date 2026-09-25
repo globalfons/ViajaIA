@@ -12,7 +12,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "LayoutDashboard", ready: true, phase: 1 },
-  { href: "/clients", label: "Clients", icon: "Building2", ready: false, phase: 2 },
+  { href: "/clients", label: "Clients", icon: "Building2", ready: true, phase: 2 },
   { href: "/agents", label: "Agents", icon: "Bot", ready: false, phase: 4 },
   { href: "/workflows", label: "Workflows", icon: "Workflow", ready: false, phase: 5 },
   { href: "/knowledge", label: "Knowledge", icon: "BookOpen", ready: false, phase: 6 },
@@ -23,5 +23,5 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/analytics", label: "Analytics", icon: "BarChart3", ready: false, phase: 3 },
   { href: "/usage", label: "Usage", icon: "Gauge", ready: false, phase: 3 },
   { href: "/billing", label: "Billing", icon: "CreditCard", ready: false, phase: 10 },
-  { href: "/settings", label: "Settings", icon: "Settings", ready: false, phase: 2 },
+  { href: "/settings", label: "Settings", icon: "Settings", ready: true, phase: 2 },
 ];

@@ -27,6 +27,8 @@ apps/web  ──(JWT usuario, RLS)──►  Supabase Postgres  ◄──(servic
 |---|---|---|
 | `config/env` | Validación de variables de entorno por entorno (development/test/staging/production) | 1 |
 | `observability/logger` | Logs JSON (pino) con IDs de correlación, redacción de secretos y *hooks* de errores/spans (Sentry/OTel) | 1 |
+| `security/rbac` | Matriz de permisos por rol (UI/API); la RLS es la fuente de verdad | 2 |
+| `billing/limits` | Claves de límites, límites efectivos (plan + override) y comprobación | 2 |
 | `llm/*` | LLM Router: proveedores, *fallbacks*, reintentos, *timeouts*, costes y uso | 3 |
 
 ## Entornos
@@ -37,3 +39,18 @@ apps/web  ──(JWT usuario, RLS)──►  Supabase Postgres  ◄──(servic
 | test | Vitest y BD de tests (`docker compose --profile test`) | Sin APIs reales; *fakes* |
 | staging | Réplica de producción con datos de prueba | Exige Supabase, `DATABASE_URL` y claves de cifrado |
 | production | Clientes reales | Igual que staging + HSTS; *outbound* inseguro prohibido |
+
+## Multi-tenancy
+
+```
+Platform Admin (profiles.is_platform_admin)
+  └─ Organization (cliente) ── plan, límites, estado, branding
+       ├─ Memberships (owner | admin | member | viewer) ── Users (profiles ↔ auth.users)
+       ├─ Invitations
+       └─ Projects ── (agents, workflows, knowledge bases… en fases siguientes)
+```
+
+- La organización activa se guarda en la cookie `dtn_org`, validada contra las membresías en cada petición.
+- Los Server Components usan el cliente Supabase del usuario, así que la RLS aplica siempre.
+- El *service role* solo se usa en acciones de Platform Admin (tras `requirePlatformAdmin`), en webhooks
+  verificados y en el worker.
