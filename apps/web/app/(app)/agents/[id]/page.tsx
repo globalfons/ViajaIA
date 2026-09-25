@@ -59,7 +59,7 @@ export default async function AgentPage({
         description={`v${agent.version}${agent.template_key && !agent.template_key.startsWith("custom:") ? ` · plantilla ${agent.template_key}` : ""}`}
         actions={<Badge variant={AGENT_STATUS_VARIANT[agent.status as keyof typeof AGENT_STATUS_VARIANT]}>{agent.status}</Badge>}
       />
-      <Flash ok={sp.ok ? (OK_MESSAGES[sp.ok] ?? sp.ok) : undefined} error={sp.error} />
+      <Flash message={sp.ok ? OK_MESSAGES[sp.ok] : undefined} error={sp.error} />
       <div className="grid gap-6 xl:grid-cols-5">
         <div className="space-y-6 xl:col-span-3">
           <AgentEditor

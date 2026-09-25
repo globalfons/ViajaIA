@@ -60,7 +60,7 @@ export default async function RunPage({ params, searchParams }: { params: Promis
           </div>
         }
       />
-      <Flash ok={sp.ok === "cancelled" ? "Ejecución cancelada." : undefined} error={sp.error} />
+      <Flash message={sp.ok === "cancelled" ? "Ejecución cancelada." : undefined} error={sp.error} />
       {run.status === "queued" ? (
         <p className="mb-4 rounded-md border border-warning/30 bg-warning/5 p-3 text-sm text-warning">
           En cola. Si no avanza, comprueba que el worker está en marcha (<code>pnpm dev:worker</code>).

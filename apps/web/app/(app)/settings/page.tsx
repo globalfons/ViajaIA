@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input, Label, Select } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import {
+  changePasswordAction,
   changeMemberRole,
   inviteMember,
   removeMember,
@@ -65,6 +66,22 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             <p className="mt-3 text-xs text-muted-foreground">
               Plan: <strong>{s.org.plan_code}</strong> · Tu rol: <strong>{s.role ?? "platform admin"}</strong>
             </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Mi cuenta</CardTitle>
+            <CardDescription>{s.email}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form action={changePasswordAction} className="grid gap-2 sm:grid-cols-3">
+              <Input name="password" type="password" required minLength={12} autoComplete="new-password" placeholder="Nueva contraseña (mín. 12)" aria-label="Nueva contraseña" />
+              <Input name="confirm" type="password" required minLength={12} autoComplete="new-password" placeholder="Repite la contraseña" aria-label="Repite la contraseña" />
+              <Button type="submit" variant="outline">
+                Cambiar contraseña
+              </Button>
+            </form>
           </CardContent>
         </Card>
 

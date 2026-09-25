@@ -111,3 +111,16 @@ export async function revokeInvitation(form: FormData) {
   revalidatePath("/settings");
   redirect(back({ ok: "revoked" }));
 }
+
+export async function changePasswordAction(form: FormData) {
+  await requireOrg();
+  const parsed = z
+    .object({ password: z.string().min(12).max(200), confirm: z.string() })
+    .refine((d) => d.password === d.confirm, "no coinciden")
+    .safeParse({ password: form.get("password"), confirm: form.get("confirm") });
+  if (!parsed.success) redirect(back({ error: "La contraseña debe tener al menos 12 caracteres y coincidir" }));
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+  if (error) redirect(back({ error: "No se pudo cambiar la contraseña" }));
+  redirect(back({ ok: "password" }));
+}

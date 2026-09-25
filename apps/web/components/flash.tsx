@@ -12,12 +12,22 @@ const MESSAGES: Record<string, string> = {
   removed: "Usuario eliminado.",
   revoked: "Invitación revocada.",
   forbidden: "No tienes permiso para esa acción.",
+  user_created: "Usuario creado y añadido a la organización.",
+  user_attached: "El usuario ya existía: se ha añadido a la organización.",
+  sent: "Enviado.",
+  password: "Contraseña actualizada.",
 };
 
-/** Displays ?ok= / ?error= results of server actions. Text is escaped by React. */
-export function Flash({ ok, error }: { ok?: string; error?: string }) {
-  if (!ok && !error) return null;
-  const text = error ? (MESSAGES[error] ?? error) : (MESSAGES[ok!] ?? "Hecho.");
+/**
+ * Displays results of server actions.
+ *  - `ok`: a key from the URL (?ok=…). Only known keys are shown, so a crafted
+ *    link cannot display arbitrary text as a success message.
+ *  - `message`: trusted success text computed by the page itself.
+ *  - `error`: error text (React-escaped, length-capped).
+ */
+export function Flash({ ok, error, message }: { ok?: string; error?: string; message?: string }) {
+  if (!ok && !error && !message) return null;
+  const text = error ? (MESSAGES[error] ?? error) : (message ?? MESSAGES[ok!] ?? "Hecho.");
   return (
     <div
       role="status"

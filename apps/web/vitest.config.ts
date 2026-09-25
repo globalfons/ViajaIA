@@ -2,6 +2,8 @@ import { defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
 
 export default defineConfig({
+  // Next keeps jsx: "preserve" in tsconfig; tests need the automatic runtime.
+  oxc: { jsx: { runtime: "automatic" } },
   resolve: {
     alias: {
       "@": fileURLToPath(new URL(".", import.meta.url)),

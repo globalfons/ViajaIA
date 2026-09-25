@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
-import { setOrganizationPlanAndLimits, setOrganizationStatus } from "@/lib/actions/admin";
+import { createUserForOrganization, setOrganizationPlanAndLimits, setOrganizationStatus } from "@/lib/actions/admin";
 import { switchOrganization } from "@/lib/actions/org";
 import { requireSession } from "@/lib/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -154,6 +154,27 @@ export default async function ClientDetailPage({
                 })}
               </TBody>
             </Table>
+            {s.isPlatformAdmin ? (
+              <form action={createUserForOrganization} className="grid gap-2 border-t p-4 sm:grid-cols-2">
+                <input type="hidden" name="organizationId" value={org.id} />
+                <p className="text-sm font-medium sm:col-span-2">Crear usuario</p>
+                <Input name="email" type="email" required placeholder="persona@cliente.es" aria-label="Email" />
+                <Input name="fullName" maxLength={120} placeholder="Nombre (opcional)" aria-label="Nombre" />
+                <Input name="password" type="password" required minLength={12} autoComplete="new-password" placeholder="Contraseña temporal (mín. 12)" aria-label="Contraseña temporal" />
+                <Select name="role" defaultValue="admin" aria-label="Rol">
+                  <option value="owner">owner</option>
+                  <option value="admin">admin</option>
+                  <option value="member">member</option>
+                  <option value="viewer">viewer</option>
+                </Select>
+                <div className="sm:col-span-2">
+                  <Button type="submit" size="sm">
+                    Crear y añadir
+                  </Button>
+                  <span className="ml-2 text-xs text-muted-foreground">Comparte la contraseña temporal por un canal seguro; el usuario puede cambiarla.</span>
+                </div>
+              </form>
+            ) : null}
           </CardContent>
         </Card>
 

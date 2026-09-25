@@ -66,7 +66,7 @@ export default async function AutomationsPage({ searchParams }: { searchParams: 
   return (
     <>
       <PageHeader title="Automations" description="Aprobaciones pendientes y ejecuciones de workflows." />
-      <Flash ok={sp.ok === "approved" ? "Aprobado." : sp.ok === "rejected" ? "Rechazado." : sp.ok} error={sp.error} />
+      <Flash message={sp.ok === "approved" ? "Aprobado." : sp.ok === "rejected" ? "Rechazado." : undefined} error={sp.error} />
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Aprobaciones pendientes {pendingCount ? <Badge variant="warning">{pendingCount}</Badge> : null}</CardTitle>

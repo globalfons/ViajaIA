@@ -217,3 +217,53 @@ export async function upsertModel(form: FormData) {
   revalidatePath("/admin");
   redirect(back("/admin", { ok: "saved" }));
 }
+
+/**
+ * Platform admin: creates a user directly (email confirmed, temporary
+ * password) or reuses an existing account, and adds it to the organization.
+ */
+export async function createUserForOrganization(form: FormData) {
+  const s = await requirePlatformAdmin();
+  const parsed = z
+    .object({
+      organizationId: z.string().uuid(),
+      email: z.string().trim().toLowerCase().email().max(320),
+      fullName: z.string().trim().max(120).optional(),
+      role: z.enum(["owner", "admin", "member", "viewer"]),
+      password: z.string().min(12, "La contraseña temporal debe tener al menos 12 caracteres").max(200),
+    })
+    .safeParse({
+      organizationId: form.get("organizationId"),
+      email: form.get("email"),
+      fullName: form.get("fullName") || undefined,
+      role: form.get("role"),
+      password: form.get("password"),
+    });
+  const orgId = String(form.get("organizationId") ?? "");
+  if (!parsed.success) redirect(back(`/clients/${orgId}`, { error: parsed.error.issues[0]?.message ?? "Datos no válidos" }));
+  const admin = createSupabaseAdminClient();
+  const { email, fullName, role, password, organizationId } = parsed.data;
+
+  let userId: string | undefined;
+  const created = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: fullName ? { full_name: fullName } : {} });
+  if (created.data.user) userId = created.data.user.id;
+  else {
+    // Existing account: attach it to the organization instead.
+    const { data } = await admin.from("profiles").select("id").eq("email", email).maybeSingle();
+    userId = data?.id;
+  }
+  if (!userId) redirect(back(`/clients/${organizationId}`, { error: "No se pudo crear el usuario" }));
+  const { error } = await admin.from("memberships").upsert({ organization_id: organizationId, user_id: userId, role }, { onConflict: "organization_id,user_id" });
+  if (error) redirect(back(`/clients/${organizationId}`, { error: "No se pudo añadir a la organización" }));
+  await recordAudit({
+    organizationId,
+    actorId: s.userId,
+    actorType: "platform_admin",
+    action: created.data.user ? "user.create" : "user.attach",
+    targetType: "profiles",
+    targetId: userId,
+    metadata: { role },
+  });
+  revalidatePath(`/clients/${organizationId}`);
+  redirect(back(`/clients/${organizationId}`, { ok: created.data.user ? "user_created" : "user_attached" }));
+}

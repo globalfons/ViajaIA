@@ -15,7 +15,8 @@
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
     "e2e": "node e2e/seed.mjs && node e2e/journey.mjs && node e2e/responsive.mjs",
-    "e2e:stack": "sh docker/e2e/up.sh"
+    "e2e:stack": "sh docker/e2e/up.sh",
+    "e2e:mvp": "node e2e/seed.mjs && node e2e/mvp.mjs"
   },
   "devDependencies": {
     "pg": "^8.23.0",

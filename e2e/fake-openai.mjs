@@ -30,11 +30,15 @@ http
       }
       if (req.url.endsWith("/chat/completions")) {
         const system = json.messages?.find((m) => m.role === "system")?.content ?? "";
-        const excerpt = /<untrusted source="kb:[^"]+">\n([\s\S]*?)\n<\/untrusted>/.exec(system)?.[1]?.trim();
+        const question = [...(json.messages ?? [])].reverse().find((m) => m.role === "user")?.content ?? "";
+        const words = (t) => new Set(t.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "").split(/\W+/).filter((w) => w.length > 3));
+        const candidate = /<untrusted source="kb:[^"]+">\n([\s\S]*?)\n<\/untrusted>/.exec(system)?.[1]?.trim();
+        // Only "knows" the answer when the excerpt shares terms with the question.
+        const excerpt = candidate && [...words(question)].some((w) => words(candidate).has(w)) ? candidate : undefined;
         const text = excerpt ? `Según la documentación: ${excerpt.slice(0, 300)} [1]` : "No encuentro esa información en la documentación.";
         // Honour structured output requests (e.g. the Customer Support template schema).
         const content = json.response_format?.type === "json_schema"
-          ? JSON.stringify({ answer: text, category: "informacion", confidence: excerpt ? 0.9 : 0.2, needs_human: !excerpt })
+          ? JSON.stringify({ answer: text, category: "informacion", confidence: excerpt ? 0.9 : 0.2, needs_human: !excerpt, ...(excerpt ? {} : { reason: "La documentación no cubre esta consulta" }) })
           : text;
         return res.end(JSON.stringify({ choices: [{ message: { content }, finish_reason: "stop" }], usage: { prompt_tokens: 120, completion_tokens: 30 } }));
       }

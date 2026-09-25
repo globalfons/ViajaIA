@@ -180,3 +180,36 @@ desmarcadas tras guardar (reseteo de formularios de React 19); el proxy de Next 
 **Riesgos pendientes:** sin OCR para PDFs escaneados (el documento queda `failed` con «No text could be extracted»); la
 dimensión 1536 está fijada por migración.
 **Siguiente:** responsive del dashboard → Conversaciones + AI Customer Support web.
+
+## Responsive + estados ✅
+Drawer de navegación en móvil/tablet, módulos no construidos ocultos a clientes, `loading.tsx` en páginas hoja (las
+páginas de detalle devuelven un **404 real**) y `error.tsx` sin trazas. `e2e/responsive.mjs` (iPhone + iPad).
+
+## Fase 7: Conversaciones + AI Customer Support (web) ✅
+**Implementado**
+- Migración `0006`: `channels` (clave pública del chat web, orígenes permitidos), `contacts`, `conversations` (estado
+  IA/escalada/humano/cerrada, prioridad, asignación, métricas) y `messages` (modelo, tokens, coste, fuentes, tools,
+  estado). Mensajes y métricas **solo los escribe el servidor**; los miembros solo pueden hacer *triage* (privilegios
+  por columna).
+- Servicio: mensaje → agente (RAG) → respuesta con métricas → **escalado** por baja confianza, `needs_human`, aprobación
+  pendiente, bloqueo por inyección o fallo del LLM (respuesta de *fallback*). Mientras lo lleva una persona, la IA no
+  responde. Respuesta humana, historial como memoria y conversación restringida al visitante y canal.
+- **Chat web público**: `/chat/{clave}` (aviso de IA, indicador de atención humana y *polling* de respuestas humanas),
+  `widget.js` para incrustar con una línea, endpoints públicos con rate limit por visitante, IP y canal, y allowlist de
+  orígenes. Solo `/chat/*` se puede incrustar en un iframe; el resto mantiene `frame-ancestors 'none'`.
+- **Inbox**: filtros (estado, agente, canal, prioridad, fecha), paginación, detalle con modelo, tokens, coste, fuentes y
+  tools por mensaje, respuesta del equipo, escalar, devolver a la IA, cerrar, prioridad y asignación.
+- **Integrations** modular: el chat web y los proveedores LLM funcionan (según `.env`); WhatsApp, Email, Telegram, Slack,
+  Calendarios, HubSpot y MCP aparecen como «Próximamente», sin botones falsos.
+- Platform Admin: **crear usuario** (contraseña temporal) en la ficha del cliente; cambio de contraseña en Settings.
+
+**Tests:** core 166 · BD 54 (8 de conversaciones) · worker 6 · web 41 · E2E: recorrido 23/23 · responsive 12/12 ·
+**MVP 19/19** (`pnpm e2e:mvp`: los 17 pasos de la definición de MVP más escalado y respuesta humana).
+**Bugs encontrados y corregidos:** los mensajes de éxito personalizados se mostraban como «Hecho.» (ahora las claves de la
+URL van en una allowlist, sin texto arbitrario); las páginas de detalle de otra organización respondían HTTP 200 con la
+vista 404, sin fuga de datos (el *streaming* de `loading.tsx` fijaba el estado).
+**Riesgos pendientes:** el texto `?error=` de las Server Actions se muestra en la página (escapado y limitado): riesgo
+bajo de suplantación de contenido; pasará a *flash* por cookie. La respuesta a visitantes web se entrega por *polling*
+(5 s), sin *realtime*.
+**Siguiente:** web pública + demo honesta → catálogo de soluciones y «Activar solución» → Leads/CRM → WhatsApp →
+límites con aprobación → Stripe.

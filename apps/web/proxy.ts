@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { supabaseConfig } from "@/lib/supabase/config";
 
-const PUBLIC_PREFIXES = ["/login", "/auth/", "/api/webhooks/", "/api/v1/", "/api/health", "/api/openapi"];
+const PUBLIC_PREFIXES = ["/login", "/auth/", "/api/webhooks/", "/api/v1/", "/api/public/", "/api/health", "/api/openapi", "/chat/", "/widget.js"];
 
 export async function proxy(request: NextRequest) {
   const requestId = request.headers.get("x-request-id") ?? crypto.randomUUID();

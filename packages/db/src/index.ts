@@ -6,3 +6,4 @@ export * from "./jobs";
 export * from "./workflows";
 export * from "./blobstore";
 export * from "./knowledge";
+export * from "./conversations";
