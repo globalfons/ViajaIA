@@ -13,6 +13,7 @@ import {
 import type { Queryable } from "./pool";
 import { BudgetGuard, loadPricing, pgUsageSink, recordToolInvocation } from "./usage";
 import { searchKnowledge } from "./knowledge";
+import { secretResolver } from "./secrets";
 
 export interface RuntimeFactoryOptions {
   db: Queryable;
@@ -42,7 +43,8 @@ export async function createAgentRuntime(opts: RuntimeFactoryOptions) {
     tools,
     // Default RAG: hybrid search over the agent's knowledge bases, scoped to its org.
     retrieve: opts.retrieve ?? ((query, kbIds, ctx) => searchKnowledge(opts.db, router, ctx.organizationId, kbIds, query, { ctx })),
-    getSecret: opts.getSecret,
+    // Credentials are decrypted server-side only when a tool needs them.
+    getSecret: opts.getSecret ?? secretResolver(opts.db),
     onToolInvocation: (rec, input) =>
       recordToolInvocation(
         opts.db,

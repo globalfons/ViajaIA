@@ -13,6 +13,7 @@ import {
 } from "@dtn/core";
 import { runAgent, assertOrgActive, NotFoundError, type RunAgentParams } from "./agents";
 import { enqueueJob } from "./jobs";
+import { secretResolver } from "./secrets";
 import type { Queryable } from "./pool";
 
 /**
@@ -186,6 +187,7 @@ export interface WorkflowRuntimeOptions {
 }
 
 function engineDeps(db: Queryable, organizationId: string, runId: string, graph: WorkflowGraph, opts: WorkflowRuntimeOptions): EngineDeps {
+  opts = { ...opts, getSecret: opts.getSecret ?? secretResolver(db) };
   const nodeTypes = new Map(graph.nodes.map((n) => [n.id, n.type]));
   const tools = new Map([...BUILTIN_TOOLS, ...(opts.extraTools ?? [])].map((t) => [t.name, t]));
   return {

@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { channelStatusAction, createWebChannelAction } from "@/lib/actions/conversations";
 import { integrationCatalog } from "@/lib/integrations";
+import { deleteSecretAction, setSecretAction } from "@/lib/actions/secrets";
+import { formatDate } from "@/lib/utils";
 import { requireOrg } from "@/lib/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -21,9 +23,12 @@ const STATE = {
 
 export default async function IntegrationsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const [s, sp, supabase, h] = await Promise.all([requireOrg("integrations.read"), searchParams, createSupabaseServerClient(), headers()]);
-  const [{ data: channels }, { data: agents }] = await Promise.all([
+  const [{ data: channels }, { data: agents }, { data: secrets }] = await Promise.all([
     supabase.from("channels").select("id, name, type, status, public_key, allowed_origins, agent_id, agents(name)").eq("organization_id", s.org.id).order("created_at"),
     supabase.from("agents").select("id, name, status").eq("organization_id", s.org.id).neq("status", "archived").order("name"),
+    s.can("secrets.manage")
+      ? supabase.from("secrets").select("name, hint, updated_at").eq("organization_id", s.org.id).order("name")
+      : Promise.resolve({ data: [] as { name: string; hint: string | null; updated_at: string }[] }),
   ]);
   const appUrl = process.env.APP_URL ?? `https://${h.get("host")}`;
   const catalog = integrationCatalog();
@@ -32,7 +37,11 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
   return (
     <>
       <PageHeader title="Integrations" description="Canales y servicios conectados a tus agentes." />
-      <Flash message={sp.ok === "channel" ? "Canal creado." : undefined} ok={sp.ok === "channel" ? undefined : sp.ok} error={sp.error} />
+      <Flash
+        message={{ channel: "Canal creado.", secret: "Credencial guardada (cifrada).", secret_deleted: "Credencial eliminada." }[sp.ok ?? ""]}
+        ok={sp.ok === "saved" ? "saved" : undefined}
+        error={sp.error}
+      />
 
       <Card className="mb-6">
         <CardHeader>
@@ -109,6 +118,45 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
           ) : null}
         </CardContent>
       </Card>
+
+      {s.can("secrets.manage") ? (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Credenciales</CardTitle>
+            <CardDescription>
+              Tokens y claves de las integraciones de esta organización. Se cifran (AES-256-GCM) y solo el servidor las usa al ejecutar una integración;
+              nunca se muestran ni llegan al modelo. Úsalas en workflows con <code>{"{{secret:NOMBRE}}"}</code>.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {(secrets ?? []).length ? (
+              <ul className="divide-y text-sm">
+                {(secrets ?? []).map((sec) => (
+                  <li key={sec.name} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                    <span className="font-mono">{sec.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {sec.hint} · actualizada {formatDate(sec.updated_at)}
+                    </span>
+                    <form action={deleteSecretAction}>
+                      <input type="hidden" name="name" value={sec.name} />
+                      <Button type="submit" size="sm" variant="ghost" className="text-danger">
+                        Eliminar
+                      </Button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground">Aún no hay credenciales guardadas.</p>
+            )}
+            <form action={setSecretAction} className="grid gap-2 sm:grid-cols-[1fr_2fr_auto]">
+              <Input name="name" required pattern="[A-Za-z][A-Za-z0-9_]{1,63}" placeholder="WHATSAPP_ACCESS_TOKEN" aria-label="Nombre" className="font-mono" />
+              <Input name="value" type="password" required autoComplete="off" placeholder="Valor (no se volverá a mostrar)" aria-label="Valor" />
+              <Button type="submit">Guardar</Button>
+            </form>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {catalog

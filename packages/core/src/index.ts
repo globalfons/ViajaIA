@@ -17,3 +17,4 @@ export * from "./workflows/template";
 export * from "./workflows/engine";
 export * from "./rag/chunker";
 export * from "./rag/parsers";
+export * from "./security/crypto";
