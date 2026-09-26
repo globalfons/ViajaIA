@@ -65,7 +65,7 @@ export async function createHarness(name) {
     /** Platform-level chat + embedding models (priced) served by the OpenAI-format test double. */
     async ensureModels() {
       for (const [model, kind] of [["support-model", "chat"], ["support-embeddings", "embedding"]]) {
-        await admin.goto(B + "/admin");
+        await admin.goto(B + "/admin?tab=settings");
         if (await admin.getByText(`openai:${model}`).count()) continue;
         await admin.fill("input[name=model]", model);
         await admin.selectOption("select[name=provider]", "openai");

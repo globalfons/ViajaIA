@@ -7,11 +7,23 @@
 //  - /graph/v21.0/*: WhatsApp Cloud API (number lookup, send message)
 //  - /resend/emails: Resend send API
 //  - /google/*: OAuth consent (auto-approves), token, revoke, Calendar freeBusy/events
+//  - /stripe/*: Stripe API (prices, customers, checkout, portal); its checkout page
+//    "pays" by sending signed webhooks to the app, like Stripe does
 //  - /_outbox: messages "sent" through the doubles (GET to read, DELETE to clear)
+import { createHmac } from "node:crypto";
 import http from "node:http";
 
 const DIMS = 1536;
 const outbox = [];
+const stripeSessions = new Map();
+const STRIPE_PRICES = { price_e2epro: { id: "price_e2epro", active: true, currency: "eur", unit_amount: 4900, recurring: { interval: "month", interval_count: 1 }, product: "prod_e2e" } };
+async function stripeWebhook(event) {
+  const payload = JSON.stringify(event);
+  const t = Math.floor(Date.now() / 1000);
+  const sig = createHmac("sha256", process.env.STRIPE_WEBHOOK_SECRET ?? "").update(`${t}.${payload}`).digest("hex");
+  const res = await fetch(`${process.env.APP_URL ?? "http://localhost:3000"}/api/webhooks/stripe`, { method: "POST", headers: { "content-type": "application/json", "stripe-signature": `t=${t},v1=${sig}` }, body: payload });
+  outbox.push({ kind: "stripe_webhook", type: event.type, status: res.status });
+}
 function embed(text) {
   const v = new Array(DIMS).fill(0);
   for (const w of text.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "").split(/\W+/).filter((x) => x.length > 2)) {
@@ -49,6 +61,42 @@ http
           outbox.push({ kind: "whatsapp", phoneNumberId: send[1], to: json.to, text: json.text?.body, auth: auth.slice(7, 13) + "…", id });
           return res.end(JSON.stringify({ messaging_product: "whatsapp", messages: [{ id }] }));
         }
+      }
+      if (req.url.startsWith("/stripe/v1/")) {
+        if (auth !== "Bearer sk_test_e2e") return (res.statusCode = 401), res.end(JSON.stringify({ error: { message: "Invalid API Key" } }));
+        const path = req.url.slice("/stripe/v1".length);
+        if (path.startsWith("/prices/")) {
+          const price = STRIPE_PRICES[path.slice(8)];
+          return price ? res.end(JSON.stringify(price)) : ((res.statusCode = 404), res.end(JSON.stringify({ error: { message: "No such price" } })));
+        }
+        if (path === "/customers") return res.end(JSON.stringify({ id: `cus_e2e_${form.get("metadata[organization_id]").slice(0, 8)}` }));
+        if (path === "/checkout/sessions") {
+          const id = `cs_e2e_${stripeSessions.size + 1}`;
+          stripeSessions.set(id, Object.fromEntries(form));
+          return res.end(JSON.stringify({ id, url: `http://127.0.0.1:${process.env.PORT ?? 4010}/stripe/checkout/${id}` }));
+        }
+        if (path === "/billing_portal/sessions") return res.end(JSON.stringify({ id: "bps_e2e", url: `http://127.0.0.1:${process.env.PORT ?? 4010}/stripe/portal?return=${encodeURIComponent(form.get("return_url"))}` }));
+      }
+      if (req.url.startsWith("/stripe/checkout/")) {
+        // "Payment" succeeds: Stripe would now send these signed events.
+        const cs = stripeSessions.get(req.url.split("/").pop());
+        if (!cs) return (res.statusCode = 404), res.end("{}");
+        const now = Math.floor(Date.now() / 1000);
+        const sub = { id: `sub_${cs.customer}`, object: "subscription", customer: cs.customer, status: "active", cancel_at_period_end: false, metadata: { organization_id: cs.client_reference_id }, items: { data: [{ price: { id: cs["line_items[0][price]"] }, current_period_start: now, current_period_end: now + 30 * 86400 }] } };
+        (async () => {
+          await stripeWebhook({ id: `evt_${cs.customer}_1`, type: "checkout.session.completed", created: now, data: { object: { id: "cs", customer: cs.customer, client_reference_id: cs.client_reference_id } } });
+          await stripeWebhook({ id: `evt_${cs.customer}_2`, type: "customer.subscription.created", created: now, data: { object: sub } });
+          await stripeWebhook({ id: `evt_${cs.customer}_3`, type: "invoice.paid", created: now, data: { object: { id: `in_${cs.customer}`, customer: cs.customer, subscription: sub.id, number: "E2E-0001", status: "paid", currency: "eur", amount_due: 4900, amount_paid: 4900, hosted_invoice_url: "https://invoice.stripe.test/e2e", status_transitions: { paid_at: now } } } });
+          res.statusCode = 303;
+          res.setHeader("location", cs.success_url);
+          res.end();
+        })();
+        return;
+      }
+      if (req.url.startsWith("/stripe/portal")) {
+        const back = new URL(req.url, "http://x").searchParams.get("return");
+        res.setHeader("content-type", "text/html; charset=utf-8");
+        return res.end(`<!doctype html><title>Stripe portal (TEST DOUBLE)</title><h1>Portal de facturación de pruebas</h1><a href="${back}">Volver</a>`);
       }
       if (req.url.startsWith("/google/auth")) {
         // Simulates a user granting consent on Google's screen.

@@ -132,31 +132,29 @@ export async function upsertPlan(form: FormData) {
       code: z.string().regex(/^[A-Z][A-Z0-9_]{1,31}$/),
       name: z.string().trim().min(1).max(80),
       description: z.string().trim().max(500).optional(),
-      stripe_price_id: z.union([z.literal(""), z.string().regex(/^price_[A-Za-z0-9]+$/)]),
       limits: z.string(),
       active: z.string().optional(),
     })
     .safeParse(Object.fromEntries(form));
-  if (!parsed.success) redirect(back("/admin", { error: "Datos de plan no válidos" }));
+  if (!parsed.success) redirect(back("/admin", { tab: "settings", error: "Datos de plan no válidos" }));
   let limits: unknown;
   try {
     limits = JSON.parse(parsed.data.limits || "{}");
   } catch {
-    redirect(back("/admin", { error: "Los límites deben ser JSON válido" }));
+    redirect(back("/admin", { tab: "settings", error: "Los límites deben ser JSON válido" }));
   }
   const parsedLimits = limitsSchema.safeParse(limits);
-  if (!parsedLimits.success) redirect(back("/admin", { error: "Límites no válidos" }));
+  if (!parsedLimits.success) redirect(back("/admin", { tab: "settings", error: "Límites no válidos" }));
 
   const admin = createSupabaseAdminClient();
   const { error } = await admin.from("plans").upsert({
     code: parsed.data.code,
     name: parsed.data.name,
     description: parsed.data.description || null,
-    stripe_price_id: parsed.data.stripe_price_id || null,
     limits: parsedLimits.data,
     active: parsed.data.active === "on",
   });
-  if (error) redirect(back("/admin", { error: "No se pudo guardar el plan" }));
+  if (error) redirect(back("/admin", { tab: "settings", error: "No se pudo guardar el plan" }));
   await recordAudit({
     organizationId: null,
     actorId: s.userId,
@@ -166,7 +164,7 @@ export async function upsertPlan(form: FormData) {
     targetId: parsed.data.code,
   });
   revalidatePath("/admin");
-  redirect(back("/admin", { ok: "plan" }));
+  redirect(back("/admin", { tab: "settings", ok: "plan" }));
 }
 
 export async function updatePlatformSettings(form: FormData) {
@@ -174,7 +172,7 @@ export async function updatePlatformSettings(form: FormData) {
   const admin = createSupabaseAdminClient();
   const allow = form.get("allowSelfSignup") === "on";
   const { error } = await admin.from("platform_settings").update({ allow_self_signup: allow }).eq("id", true);
-  if (error) redirect(back("/admin", { error: "No se pudo guardar" }));
+  if (error) redirect(back("/admin", { tab: "settings", error: "No se pudo guardar" }));
   await recordAudit({
     organizationId: null,
     actorId: s.userId,
@@ -183,7 +181,7 @@ export async function updatePlatformSettings(form: FormData) {
     metadata: { allow_self_signup: allow },
   });
   revalidatePath("/admin");
-  redirect(back("/admin", { ok: "settings" }));
+  redirect(back("/admin", { tab: "settings", ok: "settings" }));
 }
 
 const providerEnum = z.enum(["openai", "anthropic", "gemini", "xai", "deepseek", "openrouter"]);
@@ -204,12 +202,12 @@ export async function upsertModel(form: FormData) {
       enabled: z.string().optional(),
     })
     .safeParse(Object.fromEntries(form));
-  if (!parsed.success) redirect(back("/admin", { error: "Modelo no válido" }));
+  if (!parsed.success) redirect(back("/admin", { tab: "settings", error: "Modelo no válido" }));
   const { enabled, ...rest } = parsed.data;
   const { error } = await createSupabaseAdminClient()
     .from("llm_models")
     .upsert({ ...rest, display_name: rest.display_name || null, enabled: enabled === "on" });
-  if (error) redirect(back("/admin", { error: "No se pudo guardar el modelo" }));
+  if (error) redirect(back("/admin", { tab: "settings", error: "No se pudo guardar el modelo" }));
   await recordAudit({
     organizationId: null,
     actorId: s.userId,
@@ -220,7 +218,7 @@ export async function upsertModel(form: FormData) {
     metadata: { input_per_mtok: rest.input_per_mtok, output_per_mtok: rest.output_per_mtok },
   });
   revalidatePath("/admin");
-  redirect(back("/admin", { ok: "saved" }));
+  redirect(back("/admin", { tab: "settings", ok: "saved" }));
 }
 
 /**

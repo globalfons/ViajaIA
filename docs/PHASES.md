@@ -272,3 +272,22 @@ configurable (zona horaria con cambio de hora, días, franja, duración y antela
 Google revoca el acceso.
 **Tests:** core 203 (9 de calendario) · BD 87 (5 de calendario) · E2E `e2e/calendar.mjs` 8/8.
 **Pendiente:** Microsoft Calendar (Próximamente); cambiar y cancelar citas.
+
+## Platform Admin global + Stripe ✅
+**Implementado**
+- `/admin` con pestañas: **Resumen**, con KPIs (clientes, agentes activos, coste IA del mes, ingresos del mes a partir de
+  las facturas pagadas en Stripe o «Sin datos», conversaciones activas y tasa de error de agentes y workflows), límites
+  pendientes de aprobación y tabla por cliente. Además, Usuarios (con búsqueda), Agentes, Workflows, Conversaciones
+  (solo metadatos), Leads, Errores (ejecuciones, trabajos y entregas fallidas), Auditoría (con filtro), Facturación,
+  Plantillas y Configuración (planes, precios, modelos y registro).
+- Stripe sin SDK: Checkout, Billing Portal, lectura de precios y verificación de la firma de los webhooks. Migración `0013`
+  (`plan_prices`, `subscriptions`, `invoices` y `stripe_events` para la idempotencia). El plan se activa y se revierte
+  desde los webhooks.
+- `/billing` para el cliente: plan y límites efectivos, estado de la suscripción, contratación, portal y facturas.
+- Corregido: el formulario de planes escribía una columna inexistente (`plans.stripe_price_id`); ahora los precios se
+  guardan en `plan_prices`.
+- Documentación: `docs/BILLING.md`.
+
+**Tests:** BD 93 (billing 6, incluida la verificación de firma, la idempotencia y el aislamiento) · E2E `e2e/billing.mjs`
+8/8 (precio real vinculado, contratación con webhooks firmados, factura, firma falsa rechazada, portal, KPIs, pestañas y
+acceso denegado a un owner de cliente).

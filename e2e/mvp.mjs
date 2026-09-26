@@ -68,7 +68,7 @@ await step(4, "Crear un agente (plantilla Customer Support)", async () => {
   await admin.waitForURL(/dashboard/);
   // Models are platform-level: ensure a chat and an embedding model exist.
   for (const [model, kind] of [["support-model", "chat"], ["support-embeddings", "embedding"]]) {
-    await admin.goto(B + "/admin");
+    await admin.goto(B + "/admin?tab=settings");
     if (await admin.getByText(`openai:${model}`).count()) continue;
     await admin.fill("input[name=model]", model);
     await admin.selectOption("select[name=provider]", "openai");

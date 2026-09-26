@@ -13,3 +13,5 @@ export * from "./crm";
 export * from "./limits";
 export * from "./external-channels";
 export * from "./calendar";
+export * from "./billing";
+export * from "./platform";

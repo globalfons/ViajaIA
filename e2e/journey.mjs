@@ -31,7 +31,7 @@ await step("create client from UI", async () => {
 });
 await step("open client panel (switch org)", async () => { await page.click("text=Abrir panel del cliente"); await page.waitForURL(/dashboard/); await page.getByText(/Resumen de Peluquería Sol/).waitFor(); await shot("04-dashboard"); });
 await step("admin adds a chat model", async () => {
-  await page.goto(B + "/admin"); await page.fill("input[name=model]", "test-model"); await page.selectOption("select[name=provider]", "openai");
+  await page.goto(B + "/admin?tab=settings"); await page.fill("input[name=model]", "test-model"); await page.selectOption("select[name=provider]", "openai");
   await page.fill("input[name=input_per_mtok]", "1"); await page.fill("input[name=output_per_mtok]", "2");
   await page.locator("form", { has: page.locator("input[name=model]") }).locator("button[type=submit]").click();
   await page.getByText("openai:test-model").waitFor(); await shot("05-admin");
@@ -42,7 +42,7 @@ await step("create agent from Customer Support template", async () => {
 });
 await step("save agent config (new version)", async () => { await page.fill("#a-desc", "Atiende dudas"); await page.click("text=Guardar"); await page.getByText(/Guardado \(v2\)/).waitFor(); });
 await step("admin adds an embedding model", async () => {
-  await page.goto(B + "/admin"); await page.fill("input[name=model]", "e2e-embeddings"); await page.selectOption("select[name=provider]", "openai");
+  await page.goto(B + "/admin?tab=settings"); await page.fill("input[name=model]", "e2e-embeddings"); await page.selectOption("select[name=provider]", "openai");
   await page.selectOption("select[name=kind]", "embedding"); await page.fill("input[name=embedding_dimensions]", "1536");
   await page.locator("form", { has: page.locator("input[name=model]") }).locator("button[type=submit]").click();
   await page.getByText("openai:e2e-embeddings").waitFor();

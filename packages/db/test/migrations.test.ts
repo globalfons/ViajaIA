@@ -27,7 +27,7 @@ describe.skipIf(!TEST_DATABASE_URL)("migrations", () => {
        join information_schema.tables bt on bt.table_schema = t.table_schema and bt.table_name = t.table_name and bt.table_type = 'BASE TABLE'
        where t.table_schema = 'public' and t.column_name = 'organization_id'
          -- service-role-only tables (no client access at all)
-         and t.table_name not in ('audit_logs', 'jobs')
+         and t.table_name not in ('audit_logs', 'jobs', 'stripe_events')
          and not exists (
            select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = t.table_name and p.cmd in ('SELECT', 'ALL')
          )`,

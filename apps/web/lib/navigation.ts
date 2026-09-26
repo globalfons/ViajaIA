@@ -23,6 +23,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/integrations", label: "Integrations", icon: "Plug", ready: true, phase: 9 },
   { href: "/analytics", label: "Analytics", icon: "BarChart3", ready: true, phase: 3 },
   { href: "/usage", label: "Usage", icon: "Gauge", ready: true, phase: 3 },
-  { href: "/billing", label: "Billing", icon: "CreditCard", ready: false, phase: 10 },
+  { href: "/billing", label: "Billing", icon: "CreditCard", ready: true, phase: 10 },
   { href: "/settings", label: "Settings", icon: "Settings", ready: true, phase: 2 },
 ];

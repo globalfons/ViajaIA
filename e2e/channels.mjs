@@ -74,6 +74,7 @@ await step(3, "Conectar un número de WhatsApp (Meta valida número y token)", a
   await admin.fill("#wa-number", "999999");
   await admin.getByRole("button", { name: "Conectar número" }).click();
   await admin.getByText(/Meta rechazó el número o el token/).waitFor();
+  await admin.goto(B + "/integrations"); // fresh form (React resets forms after an action)
   await admin.fill("#wa-name", "WhatsApp tienda");
   await admin.fill("#wa-number", PHONE_ID);
   await admin.getByRole("button", { name: "Conectar número" }).click();

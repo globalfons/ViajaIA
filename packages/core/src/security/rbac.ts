@@ -13,6 +13,7 @@ export const PERMISSIONS = {
   "members.read": ["owner", "admin", "member", "viewer"],
   "members.invite": ["owner", "admin"],
   "members.remove": ["owner", "admin"],
+  "billing.read": ["owner", "admin"],
   "billing.manage": ["owner"],
   "agents.read": ["owner", "admin", "member", "viewer"],
   "agents.write": ["owner", "admin", "member"],
