@@ -12,6 +12,7 @@ export interface AnthropicOptions {
 
 type Block =
   | { type: "text"; text: string }
+  | { type: "image" | "document"; source: { type: "base64"; media_type: string; data: string } }
   | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
   | { type: "tool_result"; tool_use_id: string; content: string };
 
@@ -36,7 +37,10 @@ export function toAnthropicMessages(messages: ChatMessage[]) {
         system.push(m.content);
         break;
       case "user":
-        push("user", [{ type: "text", text: m.content }]);
+        push("user", [
+          ...(m.attachments ?? []).map((a): Block => ({ type: a.mimeType === "application/pdf" ? "document" : "image", source: { type: "base64", media_type: a.mimeType, data: a.data } })),
+          { type: "text", text: m.content },
+        ]);
         break;
       case "assistant": {
         const blocks: Block[] = [];

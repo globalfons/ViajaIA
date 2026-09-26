@@ -315,3 +315,19 @@ export async function contactStatusAction(form: FormData) {
   revalidatePath("/admin");
   redirect(back("/admin", { tab: "contacts", ok: "saved" }));
 }
+
+export async function setOcrModelAction(form: FormData) {
+  const s = await requirePlatformAdmin();
+  const raw = String(form.get("ocrModel") ?? "").trim();
+  const { getPool } = await import("@dtn/db");
+  const pool = getPool();
+  if (raw) {
+    const [provider, ...rest] = raw.split(":");
+    const ok = await pool.query("select 1 from public.llm_models where provider = $1 and model = $2 and kind = 'chat' and enabled", [provider, rest.join(":")]);
+    if (!ok.rowCount) redirect(back("/admin", { tab: "settings", error: "Elige un modelo de chat activo" }));
+  }
+  await pool.query("update public.platform_settings set ocr_model = $1 where id", [raw || null]);
+  await recordAudit({ organizationId: null, actorId: s.userId, actorType: "platform_admin", action: raw ? "site.ocr_enabled" : "site.ocr_disabled", metadata: { model: raw || null } });
+  revalidatePath("/admin");
+  redirect(back("/admin", { tab: "settings", ok: "saved" }));
+}

@@ -44,6 +44,16 @@ function Field({ label, htmlFor, hint, children }: { label: string; htmlFor: str
   );
 }
 
+const TABS = [
+  ["general", "General"],
+  ["model", "Modelo"],
+  ["tools", "Tools"],
+  ["knowledge", "Conocimiento"],
+  ["safety", "Seguridad y límites"],
+  ["output", "Salida"],
+] as const;
+type TabId = (typeof TABS)[number][0];
+
 const num = (v: string, fallback: number | null) => (v.trim() === "" ? fallback : Number(v));
 
 export function AgentEditor({
@@ -71,6 +81,7 @@ export function AgentEditor({
   // action, which visually unchecks controlled checkboxes after saving.
   const [state, setState] = useState<SaveState>({});
   const [pending, startSaving] = useTransition();
+  const [tab, setTab] = useState<TabId>("general");
   const modelOptions = useMemo(() => [...new Set([c.model, ...models])], [c.model, models]);
   const set = <K extends keyof AgentConfig>(k: K, v: AgentConfig[K]) => setC((prev) => ({ ...prev, [k]: v }));
   const setNested = <K extends "limits" | "guardrails" | "humanApproval" | "memory">(k: K, patch: Partial<AgentConfig[K]>) =>
@@ -105,7 +116,25 @@ export function AgentEditor({
       <input type="hidden" name="agentId" value={agentId} />
       <input type="hidden" name="config" value={payload} />
       <input type="hidden" name="status" value={status} />
+      <div role="tablist" aria-label="Secciones del agente" className="flex gap-1 overflow-x-auto border-b">
+        {TABS.map(([id, label]) => (
+          <button
+            key={id}
+            id={`tabbtn-${id}`}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            aria-controls={`tab-${id}`}
+            onClick={() => setTab(id)}
+            className={`shrink-0 border-b-2 px-3 py-2 text-sm ${tab === id ? "border-primary font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          >
+            {label}
+            {id === "tools" ? <span className="ml-1.5 rounded-full bg-muted px-1.5 text-xs">{c.tools.length}</span> : null}
+          </button>
+        ))}
+      </div>
       <fieldset disabled={!canEdit || pending} className="space-y-6">
+        <div role="tabpanel" id="tab-general" aria-labelledby="tabbtn-general" hidden={tab !== "general"} className="space-y-6">
         <Section title="General">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Nombre" htmlFor="a-name">
@@ -133,6 +162,8 @@ export function AgentEditor({
           </Field>
         </Section>
 
+        </div>
+        <div role="tabpanel" id="tab-model" aria-labelledby="tabbtn-model" hidden={tab !== "model"} className="space-y-6">
         <Section title="Modelo">
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="Modelo principal" htmlFor="a-model">
@@ -184,6 +215,8 @@ export function AgentEditor({
           </Field>
         </Section>
 
+        </div>
+        <div role="tabpanel" id="tab-tools" aria-labelledby="tabbtn-tools" hidden={tab !== "tools"} className="space-y-6">
         <Section title="Tools" description="Allowlist: el agente solo puede usar las tools marcadas aquí.">
           <ul className="divide-y">
             {tools.map((t) => {
@@ -228,6 +261,8 @@ export function AgentEditor({
           ) : null}
         </Section>
 
+        </div>
+        <div role="tabpanel" id="tab-knowledge" aria-labelledby="tabbtn-knowledge" hidden={tab !== "knowledge"} className="space-y-6">
         {knowledgeBases.length ? (
           <Section title="Conocimiento" description="Knowledge bases que el agente consulta antes de responder.">
             <div className="flex flex-wrap gap-4">
@@ -245,7 +280,11 @@ export function AgentEditor({
               ))}
             </div>
           </Section>
-        ) : null}
+        ) : (
+          <Section title="Conocimiento">
+            <p className="text-sm text-muted-foreground">No hay knowledge bases en esta organización. Créala en Knowledge y vuelve para asociarla.</p>
+          </Section>
+        )}
 
         <Section title="Memoria">
           <div className="flex flex-wrap items-end gap-6">
@@ -259,6 +298,8 @@ export function AgentEditor({
           </div>
         </Section>
 
+        </div>
+        <div role="tabpanel" id="tab-safety" aria-labelledby="tabbtn-safety" hidden={tab !== "safety"} className="space-y-6">
         <Section title="Guardrails">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Prompt injection" htmlFor="a-inj" hint="«Marcar» registra el intento; «Bloquear» no responde.">
@@ -328,6 +369,8 @@ export function AgentEditor({
           </div>
         </Section>
 
+        </div>
+        <div role="tabpanel" id="tab-output" aria-labelledby="tabbtn-output" hidden={tab !== "output"} className="space-y-6">
         <Section title="Structured output" description="JSON Schema opcional. Si se define, el agente responde con un objeto JSON validable.">
           <Textarea
             aria-label="JSON Schema de salida"
@@ -346,6 +389,7 @@ export function AgentEditor({
           />
           {schemaError ? <p className="text-xs text-danger">{schemaError}</p> : null}
         </Section>
+        </div>
       </fieldset>
 
       {canEdit ? (

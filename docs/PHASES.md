@@ -317,3 +317,16 @@ acceso denegado a un owner de cliente).
 públicas · E2E `e2e/site.mjs` 8/8 (15 rutas × 3 tamaños sin desbordamiento horizontal, 404, `robots` y `sitemap`, menú
 móvil, precios sin inventar, modo DEMO, formulario con validación y *honeypot*, gestión en admin y demo en vivo con
 respuesta basada en la documentación).
+
+## Deuda técnica cerrada ✅
+- **Agent Builder por pestañas**: General, Modelo, Tools (con contador), Conocimiento, Seguridad y límites, y Salida.
+  El estado es único, así que cambiar de pestaña no pierde cambios.
+- **Depuración de workflows**: ID de ejecución, duración total y por nodo, orden de ejecución, entrada resuelta por nodo
+  (secretos redactados; sin cabeceras de webhooks), salida y error. Se actualiza sola mientras está activa.
+- **Tiempo real** con `LISTEN/NOTIFY` y SSE para el chat web y la bandeja. Latencia medida en E2E: unos 200 ms para el
+  visitante y 300 ms para la bandeja. Se mantiene el *polling* solo como respaldo.
+- **OCR** de PDF escaneados e imágenes con el modelo de visión configurado por la agencia (migración `0015`), usando
+  adjuntos nativos en los proveedores OpenAI, Anthropic y Gemini.
+
+**Tests:** core 205 · BD 100 · worker 6 · web 42 · E2E `e2e/builder.mjs` 5/5. Suite E2E completa en verde: recorrido,
+responsive, MVP 19/19, soluciones 6/6, CRM 7/7, canales 9/9, calendario 8/8, facturación 8/8, web 8/8 y builder 5/5.

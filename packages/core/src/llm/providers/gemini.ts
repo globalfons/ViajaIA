@@ -17,6 +17,7 @@ export interface GeminiOptions {
 
 type Part =
   | { text: string }
+  | { inline_data: { mime_type: string; data: string } }
   | { functionCall: { name: string; args: Record<string, unknown> } }
   | { functionResponse: { name: string; response: Record<string, unknown> } };
 
@@ -47,7 +48,7 @@ function toContents(messages: ChatMessage[]) {
   };
   for (const m of messages) {
     if (m.role === "system") system.push(m.content);
-    else if (m.role === "user") push("user", [{ text: m.content }]);
+    else if (m.role === "user") push("user", [...(m.attachments ?? []).map((a): Part => ({ inline_data: { mime_type: a.mimeType, data: a.data } })), { text: m.content }]);
     else if (m.role === "assistant") {
       const parts: Part[] = [];
       if (m.content) parts.push({ text: m.content });

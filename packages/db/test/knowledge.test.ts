@@ -17,6 +17,7 @@ import {
   memoryBlobStore,
   NotFoundError,
   runAgent,
+  pgUsageSink,
   searchKnowledge,
 } from "../src";
 
@@ -112,6 +113,31 @@ describe.skipIf(!TEST_DATABASE_URL)("knowledge / RAG", () => {
     await drainIngest();
     const { rows } = await pool.query("select status, error from public.documents where id = $1", [doc.id]);
     expect(rows[0]).toMatchObject({ status: "failed", error: expect.stringMatching(/does not look like PDF/) });
+  });
+
+  it("OCR: images and scanned PDFs are transcribed only when the platform configured a model", async () => {
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+    const { id } = await addFileDocument(pool, blobs, orgA, kbA, { filename: "carta-escaneada.png", mimeType: "image/png", bytes: png });
+    await drainIngest();
+    let doc = (await listDocuments(pool, orgA, kbA)).find((d) => d.id === id)!;
+    expect(doc).toMatchObject({ source_type: "image", status: "failed", error: expect.stringMatching(/OCR model must be configured/) });
+
+    await db.admin.query("update public.platform_settings set ocr_model = 'openai:vision'");
+    embedder.push({ content: "Carta de precios\nMenú del día: 14 euros" });
+    // Same wiring as the worker: usage of the OCR call is recorded for the tenant.
+    const ocrRouter = new LLMRouter({ providers: { openai: embedder }, onUsage: pgUsageSink(pool) });
+    await ingestDocument(pool, id, { router: ocrRouter, blobs });
+    doc = (await listDocuments(pool, orgA, kbA)).find((d) => d.id === id)!;
+    expect(doc.status).toBe("ready");
+    const ocrReq = embedder.requests[embedder.requests.length - 1]!;
+    expect(ocrReq.model).toBe("vision");
+    const user = ocrReq.messages.find((m) => m.role === "user") as { attachments?: { mimeType: string; data: string }[] };
+    expect(user.attachments?.[0]).toMatchObject({ mimeType: "image/png", data: Buffer.from(png).toString("base64") });
+    const hits = await searchKnowledge(pool, router, orgA, [kbA], "menú del día precio");
+    expect(hits.some((h) => h.content.includes("14 euros"))).toBe(true);
+    const usage = await pool.query("select count(*)::int n from public.usage_events where organization_id = $1 and purpose = 'ocr'", [orgA]);
+    expect(usage.rows[0].n).toBe(1);
+    await db.admin.query("update public.platform_settings set ocr_model = null");
   });
 
   it("deleting a document removes its chunks and the stored file", async () => {

@@ -112,4 +112,24 @@ describe("Gemini provider", () => {
     expect(res.toolCalls[0]).toMatchObject({ name: "lookup", arguments: { q: "z" } });
     expect(res.usage).toEqual({ inputTokens: 9, outputTokens: 4 });
   });
+
+  it("sends image/PDF attachments in each provider's native format (OCR)", async () => {
+    const msg: ChatMessage = { role: "user", content: "Transcribe", attachments: [{ mimeType: "application/pdf", data: "UERG", filename: "a.pdf" }, { mimeType: "image/png", data: "iVBO" }] };
+    const oa = mockFetch(() => ({ body: { choices: [{ message: { content: "t" }, finish_reason: "stop" }], usage: {} } }));
+    await new OpenAICompatibleProvider({ id: "openai", apiKey: "k", baseUrl: "https://x", fetchImpl: oa }).chat({ model: "m", messages: [msg] });
+    expect(oa.calls[0]!.json.messages[0].content).toEqual([
+      { type: "file", file: { filename: "a.pdf", file_data: "data:application/pdf;base64,UERG" } },
+      { type: "image_url", image_url: { url: "data:image/png;base64,iVBO" } },
+      { type: "text", text: "Transcribe" },
+    ]);
+    const an = mockFetch(() => ({ body: { content: [{ type: "text", text: "t" }], stop_reason: "end_turn", usage: { input_tokens: 1, output_tokens: 1 } } }));
+    await new AnthropicProvider({ apiKey: "ak", fetchImpl: an }).chat({ model: "m", messages: [msg] });
+    expect(an.calls[0]!.json.messages[0].content.slice(0, 2)).toEqual([
+      { type: "document", source: { type: "base64", media_type: "application/pdf", data: "UERG" } },
+      { type: "image", source: { type: "base64", media_type: "image/png", data: "iVBO" } },
+    ]);
+    const ge = mockFetch(() => ({ body: { candidates: [{ content: { parts: [{ text: "t" }] }, finishReason: "STOP" }], usageMetadata: {} } }));
+    await new GeminiProvider({ apiKey: "gk", fetchImpl: ge }).chat({ model: "m", messages: [msg] });
+    expect(ge.calls[0]!.json.contents[0].parts.slice(0, 2)).toEqual([{ inline_data: { mime_type: "application/pdf", data: "UERG" } }, { inline_data: { mime_type: "image/png", data: "iVBO" } }]);
+  });
 });

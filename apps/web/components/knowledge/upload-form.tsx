@@ -13,8 +13,8 @@ export function UploadForm({ kbId }: { kbId: string }) {
       <input type="hidden" name="kbId" value={kbId} />
       <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-center text-sm text-muted-foreground hover:bg-muted/40">
         <Upload className="h-5 w-5" />
-        <span>PDF, DOCX, TXT, Markdown, CSV o HTML · máx. 20 MB por fichero · hasta 20 a la vez</span>
-        <input ref={input} type="file" name="files" multiple accept=".pdf,.docx,.txt,.md,.markdown,.csv,.html,.htm" className="text-xs" />
+        <span>PDF, DOCX, TXT, Markdown, CSV, HTML o imágenes (PNG, JPG, WEBP) · máx. 20 MB por fichero · hasta 20 a la vez. Los PDF escaneados y las imágenes se leen con OCR si la agencia lo ha activado.</span>
+        <input ref={input} type="file" name="files" multiple accept=".pdf,.docx,.txt,.md,.markdown,.csv,.html,.htm,.png,.jpg,.jpeg,.webp" className="text-xs" />
       </label>
       <Button type="submit" disabled={pending}>
         {pending ? "Subiendo…" : "Subir e indexar"}

@@ -108,7 +108,7 @@ await step(7, "La solicitud llega a Platform Admin → Contactos", async () => {
   await row.waitFor();
   await row.locator("select[name=status]").selectOption("contacted");
   await row.getByRole("button", { name: "Guardar" }).click();
-  await admin.waitForURL(/tab=contacts/);
+  await admin.getByText("Cambios guardados.").first().waitFor();
   if (await admin.getByText(`bot.${h.RUN}@example.com`).count()) throw new Error("honeypot submission was stored");
   await admin.goto(B + "/admin?tab=contacts&q=contacted");
   await admin.locator("tr", { hasText: `marta.${h.RUN}@example.com` }).waitFor();

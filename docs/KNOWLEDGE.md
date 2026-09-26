@@ -26,3 +26,15 @@ consulta: embedding de la pregunta → app.search_chunks(org, kbs, …) = vector
 - Las URLs pasan por `safeFetch` (solo HTTPS, IPs privadas bloqueadas en el momento de conectar, límite de tamaño).
 - El contenido de los documentos se trata como no confiable (delimitado y analizado en busca de inyección).
 - Ficheros con contenido que no coincide con su extensión: se rechazan (estado `failed` con el motivo).
+
+## OCR (PDF escaneados e imágenes)
+
+Si un PDF no tiene capa de texto o se sube una imagen (PNG, JPG o WEBP), la ingesta usa el **modelo de OCR** elegido en
+Platform Admin → Configuración: cualquier modelo de chat activo que acepte imágenes o PDF (OpenAI, Anthropic o Gemini).
+El fichero se envía al proveedor como adjunto nativo (`file`/`image_url`, `document`/`image` o `inline_data`) con la
+instrucción de transcribir solo el texto. El contenido del documento se trata como datos, nunca como instrucciones.
+
+- Solo se usa cuando no hay texto, con un máximo de 10 MB por fichero para OCR.
+- El consumo se registra al cliente con el propósito `ocr` y está sujeto a sus límites de coste.
+- Sin modelo configurado, el documento queda como `failed` con un mensaje claro y se puede reindexar después.
+- En los metadatos del documento queda qué modelo hizo el OCR (`metadata.ocr`).

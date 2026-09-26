@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Bot, UserRound } from "lucide-react";
-import { AutoRefresh } from "@/components/auto-refresh";
+import { LiveRefresh } from "@/components/live-refresh";
 import { PageHeader } from "@/components/layout/page-header";
 import { Flash } from "@/components/flash";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +40,7 @@ export default async function ConversationPage({ params, searchParams }: { param
 
   return (
     <>
-      <AutoRefresh active={c.status !== "closed"} intervalMs={8000} />
+      <LiveRefresh url={`/api/conversations/${c.id}/events`} active={c.status !== "closed"} />
       <PageHeader
         title={contact?.name ?? contact?.email ?? `Visitante ${c.visitor_id?.slice(0, 6) ?? ""}`}
         description={`${agent?.name ?? "Sin agente"} · ${c.channel_type} · iniciada ${formatDate(c.created_at)}`}

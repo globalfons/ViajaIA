@@ -75,6 +75,28 @@ describe("WorkflowEngine", () => {
     expect(res.state.output).toEqual({ summary: "agent: Resume: hola" });
   });
 
+  it("records each node's resolved input and timing for debugging, with secrets redacted", async () => {
+    const f = mockFetch(() => ({ body: { ok: 1 } }));
+    const g = graph(
+      [
+        n("s", "start"),
+        n("a", "agent", { agentId: AGENT, message: "Resume: {{input.text}}" }),
+        n("t", "tool", { tool: "http_get", args: { url: "https://x.test/?q={{input.text}}", token: "sk-live-abcdefghijklmnopqrstuvwxyz123456" } }),
+        n("w", "webhook", { url: "https://hooks.example.com/{{input.text}}", headers: { Authorization: "Bearer {{secret:CRM_TOKEN}}" } }),
+        n("x", "end"),
+      ],
+      [e("s", "a"), e("a", "t"), e("t", "w"), e("w", "x")],
+    );
+    const res = await runToEnd(g, deps({ fetchImpl: f, getSecret: async () => "s3cr3t" }), { text: "hola" });
+    const nodes = res.state.nodes;
+    expect(nodes.a!.input).toEqual({ agentId: AGENT, message: "Resume: hola" });
+    expect(nodes.t!.input).toMatchObject({ tool: "http_get", args: { url: "https://x.test/?q=hola" } });
+    expect(JSON.stringify(nodes.t!.input)).not.toContain("sk-live-abcdefghijklmnop");
+    expect(nodes.w!.input).toEqual({ method: "POST", url: "https://hooks.example.com/hola" });
+    expect(JSON.stringify(res.state)).not.toContain("s3cr3t");
+    for (const id of ["a", "t", "w"]) expect(Date.parse(nodes[id]!.finishedAt!) >= Date.parse(nodes[id]!.startedAt!)).toBe(true);
+  });
+
   it("follows the matching condition branch and skips the other (joins still run)", async () => {
     const d = deps();
     const g = graph(

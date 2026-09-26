@@ -20,7 +20,7 @@ export interface UsageContext {
   workflowId?: string;
   workflowRunId?: string;
   conversationId?: string;
-  purpose?: "chat" | "embedding" | "rerank" | "classification" | "workflow" | "test";
+  purpose?: "chat" | "embedding" | "rerank" | "classification" | "workflow" | "test" | "ocr";
 }
 
 export interface UsageRecord extends UsageContext {

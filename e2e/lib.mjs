@@ -66,7 +66,7 @@ export async function createHarness(name) {
     async ensureModels() {
       for (const [model, kind] of [["support-model", "chat"], ["support-embeddings", "embedding"]]) {
         await admin.goto(B + "/admin?tab=settings");
-        if (await admin.getByText(`openai:${model}`).count()) continue;
+        if (await admin.locator("td", { hasText: `openai:${model}` }).count()) continue;
         await admin.fill("input[name=model]", model);
         await admin.selectOption("select[name=provider]", "openai");
         await admin.selectOption("select[name=kind]", kind);
@@ -74,7 +74,7 @@ export async function createHarness(name) {
         await admin.fill("input[name=output_per_mtok]", "8");
         if (kind === "embedding") await admin.fill("input[name=embedding_dimensions]", "1536");
         await admin.locator("form", { has: admin.locator("input[name=model]") }).locator("button[type=submit]").click();
-        await admin.getByText(`openai:${model}`).waitFor();
+        await admin.locator("td", { hasText: `openai:${model}` }).first().waitFor();
       }
     },
     async waitReady(page, text = "ready") {

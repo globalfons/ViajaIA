@@ -3,6 +3,8 @@ import {
   checkLimit,
   chunkText,
   detectKind,
+  imageMime,
+  ocrDocument,
   effectiveLimits,
   LimitExceededError,
   MAX_UPLOAD_BYTES,
@@ -207,7 +209,18 @@ export async function ingestDocument(db: Queryable, documentId: string, deps: In
       bytes = await deps.blobs.get(doc.storage_path!);
     }
     const parsed = await parseDocument(kind, bytes, doc.title);
-    const chunks = chunkText(parsed.text, { chunkTokens: doc.chunk_tokens, overlapTokens: doc.chunk_overlap });
+    let chunks = chunkText(parsed.text, { chunkTokens: doc.chunk_tokens, overlapTokens: doc.chunk_overlap });
+    if (chunks.length === 0 && (kind === "pdf" || kind === "image")) {
+      // Scanned PDF or image: transcribe with the platform's OCR model, if one is configured.
+      const { rows: cfg } = await db.query<{ ocr_model: string | null }>("select ocr_model from public.platform_settings where id");
+      const ocrModel = cfg[0]?.ocr_model;
+      if (!ocrModel) throw new Error("No text layer found (scanned PDF or image). An OCR model must be configured in Platform Admin to read it");
+      const mimeType = kind === "pdf" ? "application/pdf" : imageMime(bytes);
+      if (!mimeType) throw new Error("Unsupported image format");
+      parsed.text = await ocrDocument(deps.router, ocrModel, { bytes, mimeType, filename: doc.title }, { organizationId: doc.organization_id, purpose: "ocr" });
+      parsed.metadata = { ...parsed.metadata, ocr: ocrModel };
+      chunks = chunkText(parsed.text, { chunkTokens: doc.chunk_tokens, overlapTokens: doc.chunk_overlap });
+    }
     if (chunks.length === 0) throw new Error("No text could be extracted from this document");
     if (chunks.length > 5000) throw new Error("Document too large (more than 5000 chunks)");
 

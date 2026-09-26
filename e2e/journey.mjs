@@ -34,7 +34,7 @@ await step("admin adds a chat model", async () => {
   await page.goto(B + "/admin?tab=settings"); await page.fill("input[name=model]", "test-model"); await page.selectOption("select[name=provider]", "openai");
   await page.fill("input[name=input_per_mtok]", "1"); await page.fill("input[name=output_per_mtok]", "2");
   await page.locator("form", { has: page.locator("input[name=model]") }).locator("button[type=submit]").click();
-  await page.getByText("openai:test-model").waitFor(); await shot("05-admin");
+  await page.locator("td", { hasText: "openai:test-model" }).first().waitFor(); await shot("05-admin");
 });
 await step("create agent from Customer Support template", async () => {
   await page.goto(B + "/agents/new"); await page.fill("#name", "Asistente Peluquería"); await page.click("text=Crear agente");
@@ -45,7 +45,7 @@ await step("admin adds an embedding model", async () => {
   await page.goto(B + "/admin?tab=settings"); await page.fill("input[name=model]", "e2e-embeddings"); await page.selectOption("select[name=provider]", "openai");
   await page.selectOption("select[name=kind]", "embedding"); await page.fill("input[name=embedding_dimensions]", "1536");
   await page.locator("form", { has: page.locator("input[name=model]") }).locator("button[type=submit]").click();
-  await page.getByText("openai:e2e-embeddings").waitFor();
+  await page.locator("td", { hasText: "openai:e2e-embeddings" }).first().waitFor();
 });
 await step("create knowledge base and upload a PDF", async () => {
   await page.goto(B + "/knowledge"); await page.fill("input[name=name]", "Documentación"); await page.selectOption("select[name=embeddingModel]", "openai:e2e-embeddings");
@@ -63,7 +63,7 @@ await step("search tester retrieves the right fragment", async () => {
 });
 await step("attach KB to the agent and answer from it with sources", async () => {
   await page.goto(B + "/agents"); await page.locator("table a").first().click(); await page.waitForURL(/\/agents\/[0-9a-f-]{36}/);
-  await page.getByLabel("Documentación").check(); await page.getByRole("button", { name: "Guardar", exact: true }).click(); await page.getByText(/Guardado \(v/).waitFor();
+  await page.getByRole("tab", { name: "Conocimiento" }).click(); await page.getByLabel("Documentación").check(); await page.getByRole("button", { name: "Guardar", exact: true }).click(); await page.getByText(/Guardado \(v/).waitFor();
   await page.fill("textarea[placeholder='Escribe un mensaje…']", "¿Qué horario tenéis?"); await page.keyboard.press("Enter");
   await page.getByText(/Según la documentación: .*lunes a viernes/).first().waitFor({ timeout: 20000 });
   await page.getByText(/Fuentes: \[1\] horario/).waitFor();

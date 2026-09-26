@@ -71,3 +71,14 @@ mensaje → sanitizar/limitar → temas bloqueados → detección de inyección 
                      → resultado redactado + <untrusted> → tool_invocations → siguiente paso
        → respuesta final → redacción de secretos → structured output → ¿confianza baja? → escalado
 ```
+
+## Tiempo real
+
+Las conversaciones se actualizan en vivo sin infraestructura adicional:
+1. Los triggers de `messages` y `conversations` (migración `0016`) emiten `pg_notify('conversation_events', {o, c})`.
+   Solo viajan identificadores, nunca contenido.
+2. Cada proceso web mantiene **una** conexión `LISTEN` (`ConversationEventHub`) y reparte los avisos a sus suscriptores.
+3. Server-Sent Events: `/api/public/chat/{key}/conversations/{id}/events` para el visitante (con las mismas comprobaciones
+   que leer su hilo) y `/api/conversations/{id}/events` para el equipo (sesión y RLS).
+4. El cliente recibe `update` y vuelve a leer por el endpoint normal autorizado. Al (re)conectar hace una lectura para no
+   perder eventos. Si la conexión cae, pasa a *polling* (5 s en el chat y 10 s en la bandeja) hasta que se recupera.

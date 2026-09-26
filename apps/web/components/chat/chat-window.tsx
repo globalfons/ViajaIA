@@ -63,12 +63,27 @@ export function ChatWindow({ channelKey, title, welcome, origin }: { channelKey:
     void refresh();
   }, [refresh]);
 
-  // While a person handles the conversation, poll for their replies.
+  // Live updates (SSE): human replies arrive as soon as they are sent.
+  const [live, setLive] = useState(false);
   useEffect(() => {
-    if (status !== "escalated" && status !== "human") return;
+    if (!session?.conversationId || typeof EventSource === "undefined") return;
+    const q = new URLSearchParams({ visitorId: session.visitorId, ...(origin ? { origin } : {}) });
+    const es = new EventSource(`/api/public/chat/${channelKey}/conversations/${session.conversationId}/events?${q}`);
+    es.addEventListener("ready", () => {
+      setLive(true);
+      void refresh(); // catch up on anything sent while (re)connecting
+    });
+    es.addEventListener("update", () => void refresh());
+    es.onerror = () => setLive(false);
+    return () => es.close();
+  }, [channelKey, origin, session, refresh]);
+
+  // Fallback while the live connection is unavailable and a person handles the conversation.
+  useEffect(() => {
+    if (live || (status !== "escalated" && status !== "human")) return;
     const t = setInterval(() => void refresh(), 5000);
     return () => clearInterval(t);
-  }, [status, refresh]);
+  }, [live, status, refresh]);
 
   useEffect(() => bottom.current?.scrollIntoView({ behavior: "smooth" }), [messages.length]);
 

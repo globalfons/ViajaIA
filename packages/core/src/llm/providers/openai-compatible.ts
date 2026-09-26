@@ -47,8 +47,21 @@ function toWire(messages: ChatMessage[]) {
   return messages.map((m) => {
     switch (m.role) {
       case "system":
-      case "user":
         return { role: m.role, content: m.content };
+      case "user":
+        if (!m.attachments?.length) return { role: m.role, content: m.content };
+        // OpenAI chat format: images as image_url data URLs, PDFs as file parts.
+        return {
+          role: m.role,
+          content: [
+            ...m.attachments.map((a) =>
+              a.mimeType === "application/pdf"
+                ? { type: "file", file: { filename: a.filename ?? "document.pdf", file_data: `data:${a.mimeType};base64,${a.data}` } }
+                : { type: "image_url", image_url: { url: `data:${a.mimeType};base64,${a.data}` } },
+            ),
+            { type: "text", text: m.content },
+          ],
+        };
       case "assistant":
         return {
           role: "assistant",

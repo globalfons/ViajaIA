@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { addPlanPriceAction, deactivatePlanPriceAction } from "@/lib/actions/billing";
-import { setDemoChannelAction, updatePlatformSettings, upsertModel, upsertPlan } from "@/lib/actions/admin";
+import { setDemoChannelAction, setOcrModelAction, updatePlatformSettings, upsertModel, upsertPlan } from "@/lib/actions/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type Price = { stripe_price_id: string; plan_code: string; currency: string; unit_amount: number; interval: string; active: boolean };
@@ -56,7 +56,7 @@ export async function SettingsTab() {
   const supabase = await createSupabaseServerClient();
   const [{ data: plans }, { data: settings }, { data: models }, { data: prices }] = await Promise.all([
     supabase.from("plans").select("*").order("sort_order"),
-    supabase.from("platform_settings").select("allow_self_signup, demo_channel_key").single(),
+    supabase.from("platform_settings").select("allow_self_signup, demo_channel_key, ocr_model").single(),
     supabase.from("llm_models").select("*").order("provider").order("model"),
     supabase.from("plan_prices").select("stripe_price_id, plan_code, currency, unit_amount, interval, active").order("created_at"),
   ]);
@@ -137,6 +137,32 @@ export async function SettingsTab() {
             <CardContent>
               <form action={setDemoChannelAction} className="flex gap-2">
                 <Input name="demoKey" defaultValue={settings?.demo_channel_key ?? ""} placeholder="wc_… (vacío = modo DEMO)" aria-label="Clave del chat de demo" className="font-mono text-xs" />
+                <Button type="submit" size="sm">
+                  Guardar
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>OCR de documentos</CardTitle>
+              <CardDescription>
+                Modelo con visión para leer PDF escaneados e imágenes en las knowledge bases. Solo se usa cuando el documento no tiene texto; su coste se registra
+                al cliente como consumo «ocr». Sin modelo, esos documentos quedan como fallidos con un aviso.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form action={setOcrModelAction} className="flex gap-2">
+                <Select name="ocrModel" defaultValue={settings?.ocr_model ?? ""} aria-label="Modelo de OCR">
+                  <option value="">Desactivado</option>
+                  {(models ?? [])
+                    .filter((m) => m.kind === "chat" && m.enabled)
+                    .map((m) => (
+                      <option key={`${m.provider}:${m.model}`} value={`${m.provider}:${m.model}`}>
+                        {m.provider}:{m.model}
+                      </option>
+                    ))}
+                </Select>
                 <Button type="submit" size="sm">
                   Guardar
                 </Button>

@@ -69,7 +69,7 @@ await step(4, "Crear un agente (plantilla Customer Support)", async () => {
   // Models are platform-level: ensure a chat and an embedding model exist.
   for (const [model, kind] of [["support-model", "chat"], ["support-embeddings", "embedding"]]) {
     await admin.goto(B + "/admin?tab=settings");
-    if (await admin.getByText(`openai:${model}`).count()) continue;
+    if (await admin.locator("td", { hasText: `openai:${model}` }).count()) continue;
     await admin.fill("input[name=model]", model);
     await admin.selectOption("select[name=provider]", "openai");
     await admin.selectOption("select[name=kind]", kind);
@@ -77,7 +77,7 @@ await step(4, "Crear un agente (plantilla Customer Support)", async () => {
     await admin.fill("input[name=output_per_mtok]", "8");
     if (kind === "embedding") await admin.fill("input[name=embedding_dimensions]", "1536");
     await admin.locator("form", { has: admin.locator("input[name=model]") }).locator("button[type=submit]").click();
-    await admin.getByText(`openai:${model}`).waitFor();
+    await admin.locator("td", { hasText: `openai:${model}` }).first().waitFor();
   }
   await admin.goto(B + "/agents/new");
   await admin.fill("#name", "Asistente de la clínica");
@@ -108,7 +108,9 @@ await step(7, "Subir documentación (PDF) y que se indexe", async () => {
   await admin.getByText("ready", { exact: true }).waitFor({ timeout: 3000 });
   // Connect the KB to the agent and activate it.
   await admin.goto(ctx.agentUrl);
+  await admin.getByRole("tab", { name: "Conocimiento" }).click();
   await admin.getByLabel("Documentación de la clínica").check();
+  await admin.getByRole("tab", { name: "General" }).click();
   await admin.selectOption("#a-status", "active");
   await admin.getByRole("button", { name: "Guardar", exact: true }).click();
   await admin.getByText(/Guardado \(v/).waitFor();

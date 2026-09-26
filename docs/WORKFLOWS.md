@@ -44,3 +44,13 @@ se resuelvan. Así, dos ramas de una condición pueden volver a unirse.
 - Una organización suspendida detiene sus runs.
 
 > **El worker es obligatorio** para ejecutar workflows: `pnpm dev:worker` en local, o el contenedor `worker` en producción.
+
+## Depuración de ejecuciones
+
+La página de cada ejecución (`/automations/runs/{id}`) muestra:
+- El ID de ejecución, el inicio y la duración total.
+- Por nodo, en orden de ejecución: etiqueta, id, tipo, estado, intentos, inicio y duración.
+- La **entrada resuelta** de cada nodo, con las plantillas aplicadas y los secretos redactados. En los webhooks nunca se
+  guardan las cabeceras, porque pueden contener `{{secret:…}}`.
+- La salida, el error y los logs de cada nodo.
+- Se actualiza sola mientras la ejecución está activa.

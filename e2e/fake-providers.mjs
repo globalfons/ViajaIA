@@ -142,6 +142,12 @@ http
         return res.end(JSON.stringify({ data: input.map((t, index) => ({ index, embedding: embed(t) })), usage: { prompt_tokens: input.join(" ").length / 4 } }));
       }
       if (req.url.endsWith("/chat/completions")) {
+        // OCR: a user message with file/image parts gets a deterministic transcription.
+        const multimodal = (json.messages ?? []).find((m) => Array.isArray(m.content) && m.content.some((c) => c.type === "file" || c.type === "image_url"));
+        if (multimodal) {
+          const text = "Carta del restaurante (transcrito por el doble de pruebas)\nMenú del día: 14 euros, de lunes a viernes.\nTerraza abierta de 13 a 16h.";
+          return res.end(JSON.stringify({ choices: [{ message: { content: text }, finish_reason: "stop" }], usage: { prompt_tokens: 900, completion_tokens: 40 } }));
+        }
         const toolNames = (json.tools ?? []).map((t) => t.function?.name);
         const msgs = json.messages ?? [];
         const last = msgs[msgs.length - 1];

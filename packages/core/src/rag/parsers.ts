@@ -12,6 +12,9 @@ export const SUPPORTED_TYPES = {
   "text/markdown": "md",
   "text/csv": "csv",
   "text/html": "html",
+  "image/png": "image",
+  "image/jpeg": "image",
+  "image/webp": "image",
 } as const;
 
 export type DocKind = (typeof SUPPORTED_TYPES)[keyof typeof SUPPORTED_TYPES] | "url";
@@ -36,6 +39,11 @@ export function detectKind(filename: string, mime?: string | null): DocKind | nu
     case "html":
     case "htm":
       return "html";
+    case "png":
+    case "jpg":
+    case "jpeg":
+    case "webp":
+      return "image";
     default:
       return null;
   }
@@ -52,6 +60,7 @@ export interface ParsedDocument {
 export function sniffMatches(kind: DocKind, bytes: Uint8Array): boolean {
   if (kind === "pdf") return bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46; // %PDF
   if (kind === "docx") return bytes[0] === 0x50 && bytes[1] === 0x4b; // ZIP
+  if (kind === "image") return imageMime(bytes) !== null;
   // Text formats: reject binaries (NUL bytes in the first KB).
   return !bytes.subarray(0, 1024).includes(0);
 }
@@ -62,6 +71,14 @@ function csvToText(csv: string, Papa: typeof import("papaparse")): { text: strin
   // One line per row keeps each record retrievable on its own.
   const lines = parsed.data.slice(0, 50_000).map((row) => fields.map((f) => `${f}: ${String(row[f] ?? "").trim()}`).join(" | "));
   return { text: lines.join("\n"), rows: lines.length };
+}
+
+/** PNG / JPEG / WEBP by magic number. */
+export function imageMime(bytes: Uint8Array): "image/png" | "image/jpeg" | "image/webp" | null {
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "image/png";
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+  if (String.fromCharCode(...bytes.subarray(0, 4)) === "RIFF" && String.fromCharCode(...bytes.subarray(8, 12)) === "WEBP") return "image/webp";
+  return null;
 }
 
 export async function parseDocument(kind: DocKind, bytes: Uint8Array, filename = ""): Promise<ParsedDocument> {
@@ -90,6 +107,9 @@ export async function parseDocument(kind: DocKind, bytes: Uint8Array, filename =
       const { text, rows } = csvToText(decode(), Papa);
       return { text, metadata: { rows } };
     }
+    case "image":
+      // Images have no text layer: ingestion transcribes them with the OCR model, if configured.
+      return { text: "", metadata: { needsOcr: true } };
     case "html":
     case "url": {
       const html = decode();

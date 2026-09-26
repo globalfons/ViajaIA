@@ -32,9 +32,16 @@ export interface ToolCall {
   arguments: Record<string, unknown>;
 }
 
+/** Binary input (image or PDF) for vision-capable models, base64-encoded. */
+export interface Attachment {
+  mimeType: "application/pdf" | "image/png" | "image/jpeg" | "image/webp" | "image/gif";
+  data: string;
+  filename?: string;
+}
+
 export type ChatMessage =
   | { role: "system"; content: string }
-  | { role: "user"; content: string }
+  | { role: "user"; content: string; attachments?: Attachment[] }
   | { role: "assistant"; content: string; toolCalls?: ToolCall[] }
   | { role: "tool"; toolCallId: string; name: string; content: string };
 

@@ -27,6 +27,8 @@ export type RunStatus = "running" | "waiting" | "completed" | "failed" | "cancel
 export interface NodeState {
   status: NodeStatus;
   output?: unknown;
+  /** Resolved input of the node (templates applied, secrets redacted) for debugging. */
+  input?: unknown;
   error?: string;
   attempts: number;
   startedAt?: string;
@@ -336,15 +338,13 @@ export class WorkflowEngine {
         ns.status = "waiting";
         ns.wait = { kind: "approval", approvalKey };
         const expiresAt = data.timeoutHours ? new Date(this.now().getTime() + data.timeoutHours * 3_600_000).toISOString() : null;
-        await this.deps.requestApproval?.({
-          runId: state.runId,
-          nodeId: node.id,
-          approvalKey,
+        const request = {
           title: String(resolveTemplate(data.title, scope)),
           instructions: String(resolveTemplate(data.instructions, scope)),
           payload: resolveTemplate(data.payload, scope),
-          expiresAt,
-        });
+        };
+        ns.input = redactSecretsDeep(request);
+        await this.deps.requestApproval?.({ runId: state.runId, nodeId: node.id, approvalKey, ...request, expiresAt });
         ns.logs.push("Waiting for human approval");
         return;
       }
@@ -378,6 +378,7 @@ export class WorkflowEngine {
         if (node.type === "agent") {
           const d = data as NodeData<"agent">;
           const message = String(resolveTemplate(d.message, scope));
+          ns.input = redactSecretsDeep({ agentId: d.agentId, message });
           const r = await withTimeout(d.timeoutMs, (signal) => this.deps.runAgent({ agentId: d.agentId, message, runId: state.runId, nodeId: node.id, signal }));
           if (r.status === "failed" && attempt < d.retry.maxAttempts) throw new Error(r.error ?? "Agent failed");
           ns.logs.push(`Attempt ${attempt}: agent ${r.status}`);
@@ -386,11 +387,14 @@ export class WorkflowEngine {
         if (node.type === "tool") {
           const d = data as NodeData<"tool">;
           const args = resolveDeep(d.args, scope) as Record<string, unknown>;
+          ns.input = redactSecretsDeep({ tool: d.tool, args });
           const out = await withTimeout(d.timeoutMs, (signal) => this.deps.runTool({ tool: d.tool, args, runId: state.runId, nodeId: node.id, signal }));
           ns.logs.push(`Attempt ${attempt}: tool ${d.tool} ok`);
           return this.finish(state, node, "succeeded", redactSecretsDeep(out));
         }
         const d = data as NodeData<"webhook">;
+        // Headers are never recorded: they may carry resolved {{secret:…}} values.
+        ns.input = redactSecretsDeep({ method: d.method, url: String(resolveTemplate(d.url, scope)), body: d.method !== "GET" && d.body ? resolveTemplate(d.body, scope) : undefined });
         const out = await withTimeout(d.timeoutMs, () => this.callWebhook(d, scope));
         ns.logs.push(`Attempt ${attempt}: ${d.method} → HTTP ${out.status}`);
         return this.finish(state, node, "succeeded", out);
