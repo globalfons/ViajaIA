@@ -8,3 +8,4 @@ export * from "./blobstore";
 export * from "./knowledge";
 export * from "./conversations";
 export * from "./secrets";
+export * from "./solutions";

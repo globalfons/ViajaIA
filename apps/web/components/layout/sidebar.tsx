@@ -14,6 +14,7 @@ import {
   Plug,
   Settings,
   Shield,
+  Sparkles,
   Target,
   Workflow,
   Zap,
@@ -24,6 +25,7 @@ import { cn } from "@/lib/utils";
 
 const ICONS: Record<string, LucideIcon> = {
   LayoutDashboard,
+  Sparkles,
   Building2,
   Bot,
   Workflow,

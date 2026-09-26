@@ -18,3 +18,4 @@ export * from "./workflows/engine";
 export * from "./rag/chunker";
 export * from "./rag/parsers";
 export * from "./security/crypto";
+export * from "./solutions/catalog";
