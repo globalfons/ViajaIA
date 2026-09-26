@@ -28,7 +28,7 @@ describe("secrets crypto", () => {
   it("detects tampering", () => {
     const [v, iv, tag, ct] = encryptSecret("token", ring, "c").split(".");
     const flipped = Buffer.from(ct!, "base64url");
-    flipped[0] ^= 1;
+    flipped[0] = flipped[0]! ^ 1;
     expect(() => decryptSecret([v, iv, tag, flipped.toString("base64url")].join("."), ring, "c")).toThrow();
   });
 
