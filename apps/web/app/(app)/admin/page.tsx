@@ -20,6 +20,7 @@ const TABS = [
   ["audit", "Auditoría"],
   ["billing", "Facturación"],
   ["templates", "Plantillas"],
+  ["contacts", "Contactos"],
   ["settings", "Configuración"],
 ] as const;
 

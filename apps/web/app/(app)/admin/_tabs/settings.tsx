@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { addPlanPriceAction, deactivatePlanPriceAction } from "@/lib/actions/billing";
-import { updatePlatformSettings, upsertModel, upsertPlan } from "@/lib/actions/admin";
+import { setDemoChannelAction, updatePlatformSettings, upsertModel, upsertPlan } from "@/lib/actions/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type Price = { stripe_price_id: string; plan_code: string; currency: string; unit_amount: number; interval: string; active: boolean };
@@ -56,7 +56,7 @@ export async function SettingsTab() {
   const supabase = await createSupabaseServerClient();
   const [{ data: plans }, { data: settings }, { data: models }, { data: prices }] = await Promise.all([
     supabase.from("plans").select("*").order("sort_order"),
-    supabase.from("platform_settings").select("allow_self_signup").single(),
+    supabase.from("platform_settings").select("allow_self_signup, demo_channel_key").single(),
     supabase.from("llm_models").select("*").order("provider").order("model"),
     supabase.from("plan_prices").select("stripe_price_id, plan_code, currency, unit_amount, interval, active").order("created_at"),
   ]);
@@ -120,6 +120,23 @@ export async function SettingsTab() {
                   <input type="checkbox" name="allowSelfSignup" defaultChecked={settings?.allow_self_signup ?? false} />
                   Permitir que cualquier usuario cree su propia organización
                 </label>
+                <Button type="submit" size="sm">
+                  Guardar
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Demo pública</CardTitle>
+              <CardDescription>
+                Clave (<code>wc_…</code>) de un chat web activo con un agente y datos de un negocio ficticio. Con clave, <a href="/demo" className="underline">/demo</a> muestra la IA real;
+                sin ella, un modo DEMO con conversaciones de ejemplo claramente etiquetado.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form action={setDemoChannelAction} className="flex gap-2">
+                <Input name="demoKey" defaultValue={settings?.demo_channel_key ?? ""} placeholder="wc_… (vacío = modo DEMO)" aria-label="Clave del chat de demo" className="font-mono text-xs" />
                 <Button type="submit" size="sm">
                   Guardar
                 </Button>

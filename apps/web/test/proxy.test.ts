@@ -39,6 +39,17 @@ describe("proxy (auth gate)", () => {
     }
   });
 
+  it("serves the public website to anonymous visitors without opening app routes", async () => {
+    for (const p of ["/", "/soluciones", "/soluciones/ventas", "/sectores", "/precios", "/casos-de-uso", "/demo", "/contacto", "/privacidad", "/aviso-legal"]) {
+      const res = await proxy(req(p));
+      expect(res.status, p).toBe(200);
+    }
+    for (const p of ["/demonstration", "/preciosx", "/dashboard", "/admin"]) {
+      const res = await proxy(req(p));
+      expect(res.status, p).toBe(307);
+    }
+  });
+
   it("propagates or assigns a request id", async () => {
     const res = await proxy(req("/login", { "x-request-id": "req-123" }));
     expect(res.headers.get("x-request-id")).toBe("req-123");

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { formatMoney } from "@dtn/core/billing/stripe";
 import {
+  listContactRequests,
   platformAgents,
   platformAudit,
   platformBilling,
@@ -16,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { contactStatusAction } from "@/lib/actions/admin";
 import { db } from "@/lib/db";
 import { formatDate, formatUsd } from "@/lib/utils";
 import { SUB_STATUS } from "@/lib/billing-ui";
@@ -213,6 +215,56 @@ export async function ListTab({ tab, q }: { tab: string; q?: string }) {
           empty="Sin plantillas guardadas"
           rows={rows.map((t) => [t.name, t.kind, t.category ?? "—", t.organization ?? "Global (plataforma)", formatDate(t.created_at)])}
         />
+      );
+    }
+    case "contacts": {
+      const rows = await listContactRequests(d, q && ["new", "contacted", "closed", "spam"].includes(q) ? q : undefined);
+      const STATUS: Record<string, string> = { new: "Nueva", contacted: "Contactada", closed: "Cerrada", spam: "Spam" };
+      return (
+        <DataCard
+          title="Solicitudes de contacto"
+          description="Enviadas desde el formulario público. Nadie recibe correos automáticos: respóndelas tú."
+          head={["Fecha", "Persona", "Interés", "Mensaje", "Marketing", "Estado"]}
+          empty="Sin solicitudes"
+          rows={rows.map((r) => [
+            formatDate(r.created_at),
+            <span key="p">
+              <span className="font-medium">{r.name}</span>
+              <br />
+              <a href={`mailto:${r.email}`} className="underline">
+                {r.email}
+              </a>
+              {r.company ? <span className="block text-muted-foreground">{r.company}</span> : null}
+              {r.phone ? <span className="block text-muted-foreground">{r.phone}</span> : null}
+            </span>,
+            r.interest ?? "—",
+            <span key="m" className="block max-w-md whitespace-pre-wrap">
+              {clip(r.message, 600)}
+            </span>,
+            r.marketing_consent ? "Sí" : "No",
+            <form key="s" action={contactStatusAction} className="flex items-center gap-1">
+              <input type="hidden" name="id" value={r.id} />
+              <select name="status" defaultValue={r.status} aria-label="Estado de la solicitud" className="h-8 rounded-md border bg-transparent px-2 text-xs">
+                {Object.entries(STATUS).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+              <Button type="submit" size="sm" variant="outline" className="h-8">
+                Guardar
+              </Button>
+            </form>,
+          ])}
+        >
+          <div className="flex flex-wrap gap-2 pt-2 text-sm">
+            {[["", "Todas"], ["new", "Nuevas"], ["contacted", "Contactadas"], ["closed", "Cerradas"], ["spam", "Spam"]].map(([k, v]) => (
+              <a key={k} href={k ? `/admin?tab=contacts&q=${k}` : "/admin?tab=contacts"} className={`rounded-full border px-3 py-1 ${(q ?? "") === k ? "bg-foreground text-background" : ""}`}>
+                {v}
+              </a>
+            ))}
+          </div>
+        </DataCard>
       );
     }
     default:

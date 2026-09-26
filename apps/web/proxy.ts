@@ -2,7 +2,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { supabaseConfig } from "@/lib/supabase/config";
 
-const PUBLIC_PREFIXES = ["/login", "/auth/", "/api/webhooks/", "/api/v1/", "/api/public/", "/api/health", "/api/openapi", "/chat/", "/widget.js"];
+const PUBLIC_PREFIXES = ["/login", "/auth/", "/api/webhooks/", "/api/v1/", "/api/public/", "/api/health", "/api/openapi", "/chat/", "/widget.js", "/robots.txt", "/sitemap.xml"];
+/** Public commercial website: exact page or its sub-pages (not arbitrary prefixes like "/demonios"). */
+const PUBLIC_PAGES = ["/soluciones", "/sectores", "/precios", "/casos-de-uso", "/demo", "/contacto", "/privacidad", "/aviso-legal"];
+
+export function isPublicPath(path: string): boolean {
+  if (path === "/") return true;
+  if (PUBLIC_PAGES.some((p) => path === p || path.startsWith(`${p}/`))) return true;
+  return PUBLIC_PREFIXES.some((p) => path.startsWith(p));
+}
 
 export async function proxy(request: NextRequest) {
   const requestId = request.headers.get("x-request-id") ?? crypto.randomUUID();
@@ -33,7 +41,7 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isPublic = PUBLIC_PREFIXES.some((p) => path.startsWith(p));
+  const isPublic = isPublicPath(path);
   if (!user && !isPublic) {
     if (path.startsWith("/api/")) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401, headers: { "x-request-id": requestId } });

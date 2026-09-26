@@ -289,3 +289,29 @@ export async function decideLimitApprovalAction(form: FormData) {
   revalidatePath("/admin");
   redirect(back("/admin", { ok: "saved" }));
 }
+
+export async function setDemoChannelAction(form: FormData) {
+  const s = await requirePlatformAdmin();
+  const raw = String(form.get("demoKey") ?? "").trim();
+  const key = raw === "" ? null : raw;
+  if (key && !/^wc_[A-Za-z0-9_-]{20,40}$/.test(key)) redirect(back("/admin", { tab: "settings", error: "La clave debe ser la de un chat web (wc_…)" }));
+  const { getPool, setDemoChannelKey } = await import("@dtn/db");
+  try {
+    await setDemoChannelKey(getPool(), key);
+  } catch {
+    redirect(back("/admin", { tab: "settings", error: "No existe un chat web con esa clave" }));
+  }
+  await recordAudit({ organizationId: null, actorId: s.userId, actorType: "platform_admin", action: key ? "site.demo_enabled" : "site.demo_disabled" });
+  revalidatePath("/admin");
+  redirect(back("/admin", { tab: "settings", ok: "saved" }));
+}
+
+export async function contactStatusAction(form: FormData) {
+  const s = await requirePlatformAdmin();
+  const id = z.string().uuid().parse(form.get("id"));
+  const status = z.enum(["new", "contacted", "closed", "spam"]).parse(form.get("status"));
+  const { getPool, setContactRequestStatus } = await import("@dtn/db");
+  await setContactRequestStatus(getPool(), id, status, s.userId);
+  revalidatePath("/admin");
+  redirect(back("/admin", { tab: "contacts", ok: "saved" }));
+}

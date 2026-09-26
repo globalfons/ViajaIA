@@ -291,3 +291,29 @@ Google revoca el acceso.
 **Tests:** BD 93 (billing 6, incluida la verificación de firma, la idempotencia y el aislamiento) · E2E `e2e/billing.mjs`
 8/8 (precio real vinculado, contratación con webhooks firmados, factura, firma falsa rechazada, portal, KPIs, pestañas y
 acceso denegado a un owner de cliente).
+
+## Web pública comercial + demo honesta ✅
+**Implementado**
+- Grupo de rutas `(site)` con identidad visual propia (fondo tinta, acentos violeta→cian, tipografía del sistema) y
+  cabecera con menú móvil sin JavaScript. Rutas: `/`, `/soluciones`, `/soluciones/{customer-support, ventas, whatsapp,
+  documentos, marketing, automatizacion}`, `/sectores`, `/casos-de-uso`, `/precios`, `/demo`, `/contacto`,
+  `/privacidad`, `/aviso-legal`, más `robots.txt` y `sitemap.xml`.
+- Todo el contenido sale del catálogo real de soluciones. Sin clientes, testimonios, cifras ni resultados inventados: los
+  ejemplos se marcan como ilustrativos y cada solución indica «lo que no hace».
+- `/precios`: planes activos de la base de datos. Solo se muestran importes de precios vinculados en Stripe; el resto
+  indica «Precio según propuesta».
+- `/demo`: si el Platform Admin configura la clave de un chat web (Configuración → Demo pública), muestra la **IA real**
+  en un iframe. Si no, un **MODO DEMO** con conversaciones predefinidas, etiquetado de forma explícita y con un panel de
+  «qué pasa por detrás».
+- `/contacto`: validación, consentimiento RGPD obligatorio y marketing opcional, *honeypot* y rate limit por hash de IP y
+  global. Migración `0014` (`contact_requests`, accesible solo desde el servidor). Nueva pestaña Platform Admin →
+  Contactos con estados. No se envía ningún correo automático.
+- Datos legales desde el entorno (`LEGAL_*`, `CONTACT_EMAIL`); si faltan, las páginas lo indican en vez de inventarlos.
+- Proxy: las páginas públicas se sirven sin sesión por ruta exacta o subruta (`/demonstration` sigue protegida).
+- Corregido: la regla CSS global de bordes no estaba en `@layer base` y anulaba utilidades como `border-white/10` o
+  `border-primary/30` en toda la app.
+
+**Tests:** BD 4 nuevos (contacto, rate limit, acceso solo desde el servidor, clave de demo) · web: proxy de rutas
+públicas · E2E `e2e/site.mjs` 8/8 (15 rutas × 3 tamaños sin desbordamiento horizontal, 404, `robots` y `sitemap`, menú
+móvil, precios sin inventar, modo DEMO, formulario con validación y *honeypot*, gestión en admin y demo en vivo con
+respuesta basada en la documentación).
