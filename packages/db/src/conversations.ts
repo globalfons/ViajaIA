@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { sanitizeText, stageFromAgent, type AgentRunResult, type ChatMessage } from "@dtn/core";
 import { pgCrmStore } from "./crm";
+import { enqueueJob } from "./jobs";
 import { assertOrgActive, NotFoundError, runAgent, type RunAgentParams } from "./agents";
 import type { Queryable } from "./pool";
 
@@ -57,7 +58,7 @@ export async function createChannel(
   const { rows } = await db.query<ChannelRow>(
     `insert into public.channels (organization_id, type, name, agent_id, public_key, allowed_origins, config, created_by)
      values ($1, $2, $3, $4, $5, $6, $7, $8) returning ${CHANNEL_COLS}`,
-    [organizationId, input.type, input.name, input.agentId, input.type === "web" ? `wc_${randomBytes(18).toString("base64url")}` : null, origins, input.config ?? {}, userId ?? null],
+    [organizationId, input.type, input.name, input.agentId, input.type === "web" ? `wc_${randomBytes(18).toString("base64url")}` : input.type === "email" ? `em_${randomBytes(18).toString("base64url")}` : null, origins, input.config ?? {}, userId ?? null],
   );
   return rows[0]!;
 }
@@ -104,16 +105,18 @@ async function appendMessage(
     content: string;
     authorId?: string | null;
     run?: { id: string; result: AgentRunResult } | null;
-    status?: "sent" | "failed";
+    status?: "sent" | "failed" | "draft";
     error?: string | null;
+    externalId?: string | null;
+    deliveryStatus?: "pending" | "delivered" | "failed" | "not_sent" | null;
   },
 ) {
   const r = m.run?.result;
   const tokens = r ? r.usage.inputTokens + r.usage.outputTokens : 0;
   const { rows } = await db.query<{ id: number; created_at: string }>(
     `insert into public.messages (organization_id, conversation_id, role, content, author_id, agent_run_id, model,
-       input_tokens, output_tokens, cost_usd, sources, tool_calls, status, error)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) returning id, created_at`,
+       input_tokens, output_tokens, cost_usd, sources, tool_calls, status, error, external_id, delivery_status)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) returning id, created_at`,
     [
       m.organizationId,
       m.conversationId,
@@ -129,6 +132,8 @@ async function appendMessage(
       r ? JSON.stringify(r.toolInvocations.map((t) => ({ name: t.name, status: t.status, durationMs: t.durationMs }))) : null,
       m.status ?? "sent",
       m.error ?? null,
+      m.externalId ?? null,
+      m.deliveryStatus ?? null,
     ],
   );
   await db.query(
@@ -165,7 +170,12 @@ export interface IncomingResult {
   reply: string | null;
   escalated: boolean;
   runId?: string;
+  /** Id of the stored reply (to deliver it on external channels). */
+  replyMessageId?: number;
+  replyStatus?: "sent" | "draft" | "failed";
 }
+
+const EXTERNAL_CHANNELS = new Set(["whatsapp", "email"]);
 
 /**
  * Handles one inbound customer message end to end: persist → (AI answer |
@@ -178,14 +188,24 @@ export async function handleIncomingMessage(
     conversation: ConversationRow;
     text: string;
     runtime?: RunAgentParams["runtime"];
+    /** Provider message id (wamid…, Message-ID) for idempotency. */
+    externalId?: string | null;
+    /** "draft": the AI reply waits for a person to send it (email without explicit auto-send). */
+    replyMode?: "send" | "draft";
+    /** Skip the AI and hand the conversation to a person (unsupported media, automated mail…). */
+    humanOnlyReason?: string | null;
   },
 ): Promise<IncomingResult> {
   const text = sanitizeText(p.text, 8000).trim();
   if (!text) throw new Error("Empty message");
   const conv = p.conversation;
   const prior = await history(db, p.organizationId, conv.id);
-  await appendMessage(db, { organizationId: p.organizationId, conversationId: conv.id, role: "user", content: text });
+  await appendMessage(db, { organizationId: p.organizationId, conversationId: conv.id, role: "user", content: text, externalId: p.externalId });
 
+  if (p.humanOnlyReason && conv.status === "open") {
+    await db.query("update public.conversations set status = 'escalated', escalation_reason = $3 where id = $1 and organization_id = $2", [conv.id, p.organizationId, p.humanOnlyReason.slice(0, 300)]);
+    return { conversationId: conv.id, status: "escalated", reply: null, escalated: true };
+  }
   // A person owns the conversation: queue it for them, the AI does not answer.
   if (conv.status === "escalated" || conv.status === "human" || !conv.agent_id) {
     return { conversationId: conv.id, status: conv.status, reply: null, escalated: true };
@@ -225,14 +245,19 @@ export async function handleIncomingMessage(
     if (r.status === "blocked" && r.flags.injection.length) escalate = "Possible prompt injection";
   }
 
-  await appendMessage(db, {
+  const external = EXTERNAL_CHANNELS.has(conv.channel_type);
+  const ok = Boolean(r && r.status !== "failed");
+  // On external channels the fallback text is still delivered so the customer is not left without an answer.
+  const replyStatus: "sent" | "draft" | "failed" = p.replyMode === "draft" ? "draft" : ok || external ? "sent" : "failed";
+  const stored = await appendMessage(db, {
     organizationId: p.organizationId,
     conversationId: conv.id,
     role: "assistant",
     content: reply,
     run: run ? { id: run.runId, result: run.result } : null,
-    status: r && r.status !== "failed" ? "sent" : "failed",
+    status: replyStatus,
     error: r?.error ?? (r ? null : "AI unavailable"),
+    deliveryStatus: external && replyStatus === "sent" ? "pending" : null,
   });
   // Sales/qualification agents return score + stage: keep the lead in the CRM up to date.
   const st = r?.structured;
@@ -257,20 +282,51 @@ export async function handleIncomingMessage(
       [conv.id, p.organizationId, escalate],
     );
   }
-  return { conversationId: conv.id, status: escalate ? "escalated" : conv.status, reply, escalated: Boolean(escalate), runId: run?.runId };
+  return { conversationId: conv.id, status: escalate ? "escalated" : conv.status, reply, escalated: Boolean(escalate), runId: run?.runId, replyMessageId: stored.id, replyStatus };
 }
 
 /** A team member answers; the conversation becomes human-owned. */
 export async function humanReply(db: Queryable, organizationId: string, conversationId: string, userId: string, text: string) {
   const clean = sanitizeText(text, 8000).trim();
   if (!clean) throw new Error("Empty message");
-  const res = await db.query(
-    "update public.conversations set status = 'human', assigned_to = coalesce(assigned_to, $3) where id = $1 and organization_id = $2 and status <> 'closed'",
+  const res = await db.query<{ channel_type: ChannelType }>(
+    "update public.conversations set status = 'human', assigned_to = coalesce(assigned_to, $3) where id = $1 and organization_id = $2 and status <> 'closed' returning channel_type",
     [conversationId, organizationId, userId],
   );
   if (!res.rowCount) throw new NotFoundError("Open conversation");
-  // Outbound delivery for external channels (WhatsApp/email) hooks in here; web visitors poll the thread.
-  return appendMessage(db, { organizationId, conversationId, role: "human_agent", content: clean, authorId: userId });
+  const external = EXTERNAL_CHANNELS.has(res.rows[0]!.channel_type);
+  // Web visitors poll the thread; WhatsApp/email replies are delivered by the worker.
+  const msg = await appendMessage(db, { organizationId, conversationId, role: "human_agent", content: clean, authorId: userId, deliveryStatus: external ? "pending" : null });
+  if (external) await enqueueDelivery(db, organizationId, msg.id);
+  return msg;
+}
+
+export async function enqueueDelivery(db: Queryable, organizationId: string, messageId: number) {
+  await enqueueJob(db, { type: "channel.deliver", organizationId, payload: { messageId }, dedupeKey: `deliver:${messageId}`, maxAttempts: 5 });
+}
+
+/** A person approves (optionally edits) an AI draft; it is then delivered. */
+export async function sendDraft(db: Queryable, organizationId: string, messageId: number, userId: string, editedText?: string | null) {
+  const text = editedText != null ? sanitizeText(editedText, 8000).trim() : null;
+  if (editedText != null && !text) throw new Error("Empty message");
+  const { rows } = await db.query<{ conversation_id: string }>(
+    `update public.messages set status = 'sent', content = coalesce($4, content), author_id = $3, delivery_status = 'pending', error = null
+     where id = $1 and organization_id = $2 and status = 'draft' returning conversation_id`,
+    [messageId, organizationId, userId, text],
+  );
+  if (!rows[0]) throw new NotFoundError("Draft");
+  await db.query("update public.conversations set assigned_to = coalesce(assigned_to, $3) where id = $1 and organization_id = $2", [rows[0].conversation_id, organizationId, userId]);
+  await enqueueDelivery(db, organizationId, messageId);
+  return rows[0].conversation_id;
+}
+
+export async function discardDraft(db: Queryable, organizationId: string, messageId: number) {
+  const { rows } = await db.query<{ conversation_id: string }>(
+    "update public.messages set status = 'failed', delivery_status = 'not_sent', error = 'Draft discarded' where id = $1 and organization_id = $2 and status = 'draft' returning conversation_id",
+    [messageId, organizationId],
+  );
+  if (!rows[0]) throw new NotFoundError("Draft");
+  return rows[0].conversation_id;
 }
 
 export async function setConversationStatus(db: Queryable, organizationId: string, conversationId: string, status: ConversationRow["status"]) {

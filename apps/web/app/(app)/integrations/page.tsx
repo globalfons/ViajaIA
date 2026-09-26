@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { channelStatusAction, createWebChannelAction } from "@/lib/actions/conversations";
+import { createWhatsAppChannelAction, emailAutoSendAction } from "@/lib/actions/channels";
+import { EmailChannelForm } from "@/components/integrations/email-channel-form";
 import { integrationCatalog } from "@/lib/integrations";
 import { deleteSecretAction, setSecretAction } from "@/lib/actions/secrets";
 import { formatDate } from "@/lib/utils";
@@ -24,7 +26,7 @@ const STATE = {
 export default async function IntegrationsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const [s, sp, supabase, h] = await Promise.all([requireOrg("integrations.read"), searchParams, createSupabaseServerClient(), headers()]);
   const [{ data: channels }, { data: agents }, { data: secrets }] = await Promise.all([
-    supabase.from("channels").select("id, name, type, status, public_key, allowed_origins, agent_id, agents(name)").eq("organization_id", s.org.id).order("created_at"),
+    supabase.from("channels").select("id, name, type, status, public_key, allowed_origins, agent_id, config, agents(name)").eq("organization_id", s.org.id).order("created_at"),
     supabase.from("agents").select("id, name, status").eq("organization_id", s.org.id).neq("status", "archived").order("name"),
     s.can("secrets.manage")
       ? supabase.from("secrets").select("name, hint, updated_at").eq("organization_id", s.org.id).order("name")
@@ -33,6 +35,20 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
   const appUrl = process.env.APP_URL ?? `https://${h.get("host")}`;
   const catalog = integrationCatalog();
   const manage = s.can("integrations.manage");
+  const waReady = Boolean(process.env.WHATSAPP_APP_SECRET && process.env.WHATSAPP_VERIFY_TOKEN);
+  const secretNames = (secrets ?? []).map((x) => x.name);
+  const channelList = (type: string) => (channels ?? []).filter((c) => c.type === type);
+  const agentName = (c: { agents: unknown }) => ((Array.isArray(c.agents) ? c.agents[0] : c.agents) as { name: string } | null)?.name ?? "—";
+  const statusToggle = (c: { id: string; status: string }) =>
+    manage ? (
+      <form action={channelStatusAction}>
+        <input type="hidden" name="channelId" value={c.id} />
+        <input type="hidden" name="status" value={c.status === "active" ? "paused" : "active"} />
+        <Button type="submit" size="sm" variant="outline">
+          {c.status === "active" ? "Pausar" : "Activar"}
+        </Button>
+      </form>
+    ) : null;
 
   return (
     <>
@@ -119,6 +135,141 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
         </CardContent>
       </Card>
 
+      <Card className="mb-6">
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle>WhatsApp Business</CardTitle>
+            <Badge variant={waReady ? "success" : "warning"}>{waReady ? "Disponible" : "Pendiente de la agencia"}</Badge>
+          </div>
+          <CardDescription>
+            Cloud API de Meta. Los mensajes entrantes llegan firmados al webhook de la plataforma, se asignan a este cliente por su número y responde el
+            agente (o tu equipo desde Conversations). Solo se contesta dentro de la ventana de 24 h que abre el cliente: no hay envíos masivos ni mensajes no
+            solicitados.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!waReady ? (
+            <p className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm">
+              La agencia debe configurar su app de Meta en el servidor (<code>WHATSAPP_APP_SECRET</code> y <code>WHATSAPP_VERIFY_TOKEN</code>) y registrar el
+              webhook <code className="break-all">{appUrl}/api/webhooks/whatsapp</code>.
+            </p>
+          ) : null}
+          {channelList("whatsapp").map((c) => {
+            const cfg = (c.config ?? {}) as Record<string, string | null>;
+            return (
+              <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-4">
+                <div>
+                  <p className="font-medium">
+                    {c.name} · {cfg.display_phone_number ?? cfg.phone_number_id}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Agente: {agentName(c)} · phone_number_id {cfg.phone_number_id} · token en <code>{cfg.token_secret}</code>
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant={c.status === "active" ? "success" : "secondary"}>{c.status === "active" ? "activo" : "pausado"}</Badge>
+                  {statusToggle(c)}
+                </div>
+              </div>
+            );
+          })}
+          {manage && waReady ? (
+            (agents ?? []).length ? (
+              <form action={createWhatsAppChannelAction} className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="wa-name">Nombre</Label>
+                  <Input id="wa-name" name="name" required maxLength={120} placeholder="WhatsApp recepción" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="wa-agent">Agente</Label>
+                  <Select id="wa-agent" name="agentId" required>
+                    {(agents ?? []).map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name} {a.status !== "active" ? "(no activo)" : ""}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="wa-number">Phone number ID (Meta)</Label>
+                  <Input id="wa-number" name="phoneNumberId" required inputMode="numeric" pattern="[0-9]{5,30}" placeholder="109876543210987" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="wa-token">Credencial con el token de acceso</Label>
+                  <Select id="wa-token" name="tokenSecret" required defaultValue={secretNames.includes("WHATSAPP_ACCESS_TOKEN") ? "WHATSAPP_ACCESS_TOKEN" : undefined}>
+                    {secretNames.length ? null : <option value="WHATSAPP_ACCESS_TOKEN">WHATSAPP_ACCESS_TOKEN (guárdalo en Credenciales)</option>}
+                    {secretNames.map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div className="sm:col-span-2">
+                  <Button type="submit">Conectar número</Button>
+                  <p className="mt-1 text-xs text-muted-foreground">Comprobamos con Meta que el token puede operar ese número antes de conectarlo.</p>
+                </div>
+              </form>
+            ) : (
+              <p className="text-sm text-muted-foreground">Crea primero un agente para conectarlo a un canal.</p>
+            )
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle>Email</CardTitle>
+            <Badge variant="success">Disponible</Badge>
+          </div>
+          <CardDescription>
+            Recibe los correos del cliente en un webhook con token propio; el agente prepara la respuesta. Por defecto las respuestas son borradores que
+            revisa una persona. El envío usa Resend con la API key del cliente.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {channelList("email").map((c) => {
+            const cfg = (c.config ?? {}) as Record<string, unknown>;
+            return (
+              <div key={c.id} className="space-y-2 rounded-md border p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="font-medium">
+                      {c.name} · {String(cfg.from_address ?? "")}
+                    </p>
+                    <p className="break-all text-xs text-muted-foreground">
+                      Agente: {agentName(c)} · Webhook: <code>{`${appUrl}/api/webhooks/email/${c.public_key}`}</code>
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={cfg.auto_send ? "warning" : "secondary"}>{cfg.auto_send ? "envío automático" : "borradores"}</Badge>
+                    <Badge variant={c.status === "active" ? "success" : "secondary"}>{c.status === "active" ? "activo" : "pausado"}</Badge>
+                    {manage ? (
+                      <form action={emailAutoSendAction}>
+                        <input type="hidden" name="channelId" value={c.id} />
+                        <input type="hidden" name="autoSend" value={cfg.auto_send ? "false" : "true"} />
+                        <Button type="submit" size="sm" variant="outline">
+                          {cfg.auto_send ? "Pasar a borradores" : "Activar envío automático"}
+                        </Button>
+                      </form>
+                    ) : null}
+                    {statusToggle(c)}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {manage ? (
+            (agents ?? []).length ? (
+              <EmailChannelForm agents={agents ?? []} secrets={secretNames} appUrl={appUrl} />
+            ) : (
+              <p className="text-sm text-muted-foreground">Crea primero un agente para conectarlo a un canal.</p>
+            )
+          ) : null}
+        </CardContent>
+      </Card>
+
       {s.can("secrets.manage") ? (
         <Card className="mb-6">
           <CardHeader>
@@ -160,7 +311,7 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {catalog
-          .filter((i) => i.key !== "web")
+          .filter((i) => !["web", "whatsapp", "email"].includes(i.key))
           .map((i) => (
             <Card key={i.key} className={i.state === "coming_soon" ? "opacity-75" : undefined}>
               <CardHeader>

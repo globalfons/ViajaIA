@@ -40,7 +40,8 @@ export const serverEnvSchema = z
 
     WHATSAPP_APP_SECRET: optional,
     WHATSAPP_VERIFY_TOKEN: optional,
-    WHATSAPP_GRAPH_API_VERSION: optional,
+    WHATSAPP_GRAPH_BASE_URL: optional,
+    RESEND_BASE_URL: optional,
 
     GOOGLE_CLIENT_ID: optional,
     GOOGLE_CLIENT_SECRET: optional,

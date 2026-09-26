@@ -1,6 +1,6 @@
 // MVP acceptance test: the 17 steps that define "MVP achieved", executed in a
 // real browser against the production build, the worker and a Supabase stack.
-// LLM calls go to e2e/fake-openai.mjs (TEST DOUBLE) via OPENAI_BASE_URL.
+// LLM calls go to e2e/fake-providers.mjs (TEST DOUBLE) via OPENAI_BASE_URL.
 import { mkdirSync } from "node:fs";
 import { chromium } from "playwright";
 

@@ -22,3 +22,5 @@ export * from "./solutions/catalog";
 export * from "./crm/types";
 export * from "./crm/tools";
 export * from "./crm/hubspot";
+export * from "./channels/whatsapp";
+export * from "./channels/email";

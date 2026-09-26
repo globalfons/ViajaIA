@@ -173,7 +173,7 @@ fase 6, casillas desmarcadas tras guardar el agente).
 tipos, límites, fallo de parseo, borrado y uso de embeddings) · worker 6 · web 37 (aislamiento de la API de Knowledge) ·
 **E2E 23/23** (subida de un PDF desde la UI → el worker lo indexa → búsqueda → el agente responde con la fuente,
 salida estructurada `completed`).
-**Doble de pruebas E2E:** `e2e/fake-openai.mjs` imita el formato HTTP de OpenAI (embeddings deterministas; el chat repite el
+**Doble de pruebas E2E:** `e2e/fake-providers.mjs` (antes `fake-openai.mjs`) imita el formato HTTP de OpenAI (embeddings deterministas; el chat repite el
 primer fragmento recibido). Está marcado como TEST DOUBLE y solo se usa en E2E.
 **Bugs encontrados y corregidos:** separador `-- 1 of 1 --` del parser de PDF en el texto indexado; casillas del editor
 desmarcadas tras guardar (reseteo de formularios de React 19); el proxy de Next truncaría en silencio subidas de más de 10 MB.
@@ -247,3 +247,18 @@ E2E `e2e/crm.mjs` 7/7 (chat → lead cualificado con puntuación 80 → ficha �
 aprobación → aprobación del admin).
 **Bugs corregidos:** en el alta automática, la actividad decía «Lead creado» en lugar de indicar su origen; el campo de
 tarea quedaba aplastado en pantallas estrechas; el estado de la oportunidad se mostraba en inglés.
+
+## Canales WhatsApp + Email ✅
+**Implementado**
+- Adaptadores en `packages/core/src/channels`: verificación de firma de Meta, parseo del webhook (texto, botones,
+  interactivos; otros tipos pasan a una persona), envío por Graph API y comprobación del número; email con formato
+  genérico y de Postmark, detección de correos automáticos, limpieza del texto citado y envío por Resend con hilo.
+- Migración `0011`: seguimiento de entrega por mensaje (`pending`/`delivered`/`failed`/`not_sent`), `external_id`
+  único por organización y número de WhatsApp único en la plataforma.
+- Worker: trabajos `channel.inbound` (procesado idempotente) y `channel.deliver` (reintentos solo ante errores
+  transitorios).
+- UI: tarjetas de WhatsApp y Email en Integrations; el token de email se muestra una sola vez; en el inbox, borradores
+  editables (enviar o descartar), estado de entrega y reintento.
+- Documentación: `docs/INTEGRATIONS.md`.
+
+**Tests:** core 194 (9 de canales) · BD 82 (7 de canales, incluido el aislamiento) · E2E `e2e/channels.mjs` 9/9.

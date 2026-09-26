@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, Textarea } from "@/components/ui/input";
 import { conversationStatusAction, replyAction, triageAction } from "@/lib/actions/conversations";
+import { discardDraftAction, retryDeliveryAction, sendDraftAction } from "@/lib/actions/channels";
 import { CONV_STATUS, PRIORITY } from "@/lib/conversation-ui";
 import { requireOrg } from "@/lib/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -28,7 +29,7 @@ export default async function ConversationPage({ params, searchParams }: { param
   if (!c) notFound();
   const { data: messages } = await supabase
     .from("messages")
-    .select("id, role, content, model, input_tokens, output_tokens, cost_usd, sources, tool_calls, status, error, agent_run_id, created_at, author_id")
+    .select("id, role, content, model, input_tokens, output_tokens, cost_usd, sources, tool_calls, status, error, agent_run_id, created_at, author_id, delivery_status, delivery_error")
     .eq("conversation_id", id)
     .eq("organization_id", s.org.id)
     .order("id");
@@ -61,16 +62,48 @@ export default async function ConversationPage({ params, searchParams }: { param
                   <div key={m.id} className={`flex gap-2 ${isCustomer ? "" : "flex-row-reverse"}`}>
                     {isCustomer ? <UserRound className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" /> : m.role === "human_agent" ? <UserRound className="mt-1 h-4 w-4 shrink-0 text-primary" /> : <Bot className="mt-1 h-4 w-4 shrink-0 text-primary" />}
                     <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${isCustomer ? "bg-muted" : m.role === "human_agent" ? "border border-primary/30 bg-primary/5" : "bg-primary/10"}`}>
-                      <p className="whitespace-pre-wrap">{m.content}</p>
+                      {m.status === "draft" ? (
+                        <form className="space-y-2" aria-label="Borrador de respuesta">
+                          <p className="text-[11px] font-medium uppercase tracking-wide text-warning">Borrador · revísalo antes de enviarlo</p>
+                          <input type="hidden" name="conversationId" value={c.id} />
+                          <input type="hidden" name="messageId" value={m.id} />
+                          <Textarea name="text" rows={4} maxLength={8000} defaultValue={m.content} aria-label="Texto del borrador" disabled={!canReply} />
+                          {canReply ? (
+                            <div className="flex gap-2">
+                              <Button type="submit" size="sm" formAction={sendDraftAction}>
+                                Enviar borrador
+                              </Button>
+                              <Button type="submit" size="sm" variant="ghost" formAction={discardDraftAction}>
+                                Descartar
+                              </Button>
+                            </div>
+                          ) : null}
+                        </form>
+                      ) : (
+                        <p className={`whitespace-pre-wrap ${m.delivery_status === "not_sent" ? "text-muted-foreground line-through" : ""}`}>{m.content}</p>
+                      )}
                       <div className="mt-1.5 flex flex-wrap gap-x-2 text-[11px] text-muted-foreground">
                         <span>{formatDate(m.created_at)}</span>
                         {m.role === "human_agent" ? <span>· equipo</span> : null}
                         {m.model ? <span className="font-mono">· {m.model}</span> : null}
                         {m.role === "assistant" ? <span>· {formatNumber(m.input_tokens + m.output_tokens)} tokens · {formatUsd(Number(m.cost_usd))}</span> : null}
-                        {m.status === "failed" ? <span className="text-danger">· fallo IA: {m.error}</span> : null}
+                        {m.status === "failed" && m.delivery_status !== "not_sent" ? <span className="text-danger">· fallo IA: {m.error}</span> : null}
+                        {m.delivery_status === "not_sent" ? <span>· borrador descartado</span> : null}
+                        {m.delivery_status === "pending" ? <span>· enviando…</span> : null}
+                        {m.delivery_status === "delivered" ? <span className="text-success">· entregado</span> : null}
+                        {m.delivery_status === "failed" ? <span className="text-danger">· no entregado: {m.delivery_error}</span> : null}
                       </div>
                       {sources.length ? <p className="mt-1 text-[11px] text-muted-foreground">Fuentes: {sources.map((x, i) => `[${i + 1}] ${x.title}`).join(" · ")}</p> : null}
                       {tools.length ? <p className="mt-0.5 text-[11px] text-muted-foreground">Tools: {tools.map((t) => `${t.name} (${t.status})`).join(", ")}</p> : null}
+                      {m.delivery_status === "failed" && canReply ? (
+                        <form action={retryDeliveryAction} className="mt-1">
+                          <input type="hidden" name="conversationId" value={c.id} />
+                          <input type="hidden" name="messageId" value={m.id} />
+                          <Button type="submit" size="sm" variant="outline" className="h-6 px-2 text-xs">
+                            Reintentar envío
+                          </Button>
+                        </form>
+                      ) : null}
                     </div>
                   </div>
                 );

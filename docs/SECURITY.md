@@ -32,3 +32,21 @@ dirección de seguridad de la agencia (no abras un *issue* público).
 - **Invitaciones**: se aceptan únicamente para el email verificado del JWT (`accept_pending_invitations`).
 - **Cabeceras HTTP**: HSTS, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy` y `Permissions-Policy`.
 - **IDs de petición**: el proxy asigna o propaga `x-request-id`, que se incluye en los logs y en el audit.
+
+## Canales externos, credenciales y límites
+
+- **Webhooks de WhatsApp**: firma `X-Hub-Signature-256` obligatoria (comparación en tiempo constante). El cliente se
+  identifica por `phone_number_id`, nunca por el contenido, y un número solo puede pertenecer a una organización.
+  Además, se comprueba en Meta que el token del cliente puede operar ese número antes de enlazarlo.
+- **Webhook de email**: un token por canal (solo se guarda su SHA-256, se compara en tiempo constante), límite de
+  tamaño y rate limit por remitente.
+- **Procesado idempotente**: `messages(organization_id, external_id)` es único y los trabajos del worker cargan el canal
+  filtrando por la organización del trabajo.
+- **Sin contacto no solicitado**: solo se responde a conversaciones iniciadas por el cliente (ventana de 24 h en
+  WhatsApp). Los emails se quedan en borrador salvo que el cliente active el envío automático; nunca se responde a
+  correos automáticos, y hay un límite horario contra bucles.
+- **Credenciales**: AES-256-GCM con AAD `orgId/nombre` y rotación de claves. Owners y admins solo ven los metadatos.
+- **CRM**: la base legal RGPD es obligatoria en cada lead y el consentimiento de marketing se registra con su fecha.
+  La plataforma no envía comunicaciones comerciales.
+- **Límites**: el cliente no puede cambiar su plan, sus límites ni su política (privilegios por columna). Las
+  aprobaciones de límite las escribe solo el servidor tras `requirePlatformAdmin()`.

@@ -3,8 +3,12 @@ import {
   blobStoreFromEnv,
   ConcurrentUpdateError,
   createAgentRuntime,
+  deliverMessage,
   enqueueJob,
   ingestDocument,
+  processInbound,
+  providerOptionsFromEnv,
+  type ProviderOptions,
   type BlobStore,
   type Job,
   type Queryable,
@@ -15,11 +19,23 @@ export type JobHandler = (job: Job, db: Queryable) => Promise<void>;
 
 export interface HandlerOptions extends WorkflowRuntimeOptions {
   blobs?: BlobStore;
+  /** WhatsApp/email provider endpoints (defaults: env / real APIs). */
+  providers?: ProviderOptions;
 }
 
 export function createHandlers(opts: HandlerOptions = {}): Record<string, JobHandler> {
   let blobs = opts.blobs;
+  const channelOpts = (): ProviderOptions => ({ ...providerOptionsFromEnv(), ...opts.providers, runtime: opts.agentRuntime });
   return {
+    "channel.inbound": async (job, db) => {
+      if (!job.organization_id) throw new Error("channel.inbound without organization");
+      await processInbound(db, job.organization_id, job.payload, channelOpts());
+    },
+    "channel.deliver": async (job, db) => {
+      if (!job.organization_id) throw new Error("channel.deliver without organization");
+      // Transient provider errors throw and are retried with backoff; the last attempt records the failure.
+      await deliverMessage(db, job.organization_id, Number(job.payload.messageId), channelOpts(), job.attempts >= job.max_attempts);
+    },
     "document.ingest": async (job, db) => {
       blobs ??= blobStoreFromEnv();
       // Same router as agents: pricing, usage_events and budget checks apply to embeddings too.
