@@ -18,7 +18,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/workflows", label: "Workflows", icon: "Workflow", ready: true, phase: 5 },
   { href: "/knowledge", label: "Knowledge", icon: "BookOpen", ready: true, phase: 6 },
   { href: "/conversations", label: "Conversations", icon: "MessagesSquare", ready: true, phase: 7 },
-  { href: "/leads", label: "Leads", icon: "Target", ready: false, phase: 8 },
+  { href: "/leads", label: "Leads", icon: "Target", ready: true, phase: 8 },
   { href: "/automations", label: "Automations", icon: "Zap", ready: true, phase: 5 },
   { href: "/integrations", label: "Integrations", icon: "Plug", ready: true, phase: 9 },
   { href: "/analytics", label: "Analytics", icon: "BarChart3", ready: true, phase: 3 },

@@ -1,5 +1,6 @@
 "use server";
 
+import { limitMessage } from "@/lib/limit-message";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -24,7 +25,7 @@ const uuid = z.string().uuid();
 
 function message(e: unknown): string {
   if (e instanceof KnowledgeError) return e.message;
-  if (e instanceof LimitExceededError) return `Límite del plan alcanzado (${e.key}).`;
+  if (e instanceof LimitExceededError) return limitMessage(e);
   if (e instanceof OrganizationSuspendedError) return "La organización está suspendida.";
   if (e instanceof NotFoundError) return "No encontrado.";
   return "Error inesperado.";

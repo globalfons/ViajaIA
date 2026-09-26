@@ -1,6 +1,7 @@
 import {
   AgentRuntime,
   BUILTIN_TOOLS,
+  createCrmTools,
   LLMRouter,
   providersFromEnv,
   ToolRegistry,
@@ -14,6 +15,7 @@ import type { Queryable } from "./pool";
 import { BudgetGuard, loadPricing, pgUsageSink, recordToolInvocation } from "./usage";
 import { searchKnowledge } from "./knowledge";
 import { secretResolver } from "./secrets";
+import { pgCrmStore } from "./crm";
 
 export interface RuntimeFactoryOptions {
   db: Queryable;
@@ -37,7 +39,8 @@ export async function createAgentRuntime(opts: RuntimeFactoryOptions) {
     beforeCall: guard.check,
   });
   const tools = new ToolRegistry();
-  for (const t of [...BUILTIN_TOOLS, ...(opts.extraTools ?? [])]) tools.register(t);
+  // Registered for every agent; each agent's allowlist decides what it may use.
+  for (const t of [...BUILTIN_TOOLS, ...createCrmTools(pgCrmStore(opts.db)), ...(opts.extraTools ?? [])]) tools.register(t);
   const runtime = new AgentRuntime({
     router,
     tools,

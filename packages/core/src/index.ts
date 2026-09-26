@@ -19,3 +19,6 @@ export * from "./rag/chunker";
 export * from "./rag/parsers";
 export * from "./security/crypto";
 export * from "./solutions/catalog";
+export * from "./crm/types";
+export * from "./crm/tools";
+export * from "./crm/hubspot";

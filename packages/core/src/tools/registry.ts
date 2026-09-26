@@ -121,3 +121,8 @@ export async function executeTool(tool: ToolDefinition, rawArgs: unknown, ctx: O
     parentSignal?.removeEventListener("abort", onAbort);
   }
 }
+
+/** Type-safe helper: infers `execute` argument types from the zod schema. */
+export function defineTool<Args extends z.ZodType>(tool: ToolDefinition<Args>): ToolDefinition {
+  return tool as unknown as ToolDefinition;
+}

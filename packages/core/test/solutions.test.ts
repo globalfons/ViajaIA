@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { SOLUTION_CATEGORIES, SOLUTIONS } from "../src/solutions/catalog";
 import { getAgentTemplate } from "../src/templates/agent-templates";
 import { BUILTIN_TOOLS } from "../src/tools/builtin";
+import { CRM_TOOL_NAMES } from "../src/crm/tools";
 import { validateWorkflowGraph } from "../src/workflows/schema";
 
 describe("solutions catalog", () => {
@@ -27,7 +28,7 @@ describe("solutions catalog", () => {
   it.each(SOLUTIONS.map((s) => [s.key, s] as const))("%s is internally consistent", (_k, s) => {
     expect(SOLUTION_CATEGORIES).toContain(s.category);
     for (const a of s.agents) expect(getAgentTemplate(a.templateKey), a.templateKey).toBeDefined();
-    const tools = new Set(BUILTIN_TOOLS.map((t) => t.name));
+    const tools = new Set<string>([...BUILTIN_TOOLS.map((t) => t.name), ...CRM_TOOL_NAMES]);
     for (const t of s.tools) expect(tools.has(t), t).toBe(true);
     for (const f of s.config) expect(f.key).toMatch(/^[a-z][a-z0-9_]{1,39}$/);
     if (s.workflow) {

@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
-import { sanitizeText, type AgentRunResult, type ChatMessage } from "@dtn/core";
+import { sanitizeText, stageFromAgent, type AgentRunResult, type ChatMessage } from "@dtn/core";
+import { pgCrmStore } from "./crm";
 import { assertOrgActive, NotFoundError, runAgent, type RunAgentParams } from "./agents";
 import type { Queryable } from "./pool";
 
@@ -233,6 +234,23 @@ export async function handleIncomingMessage(
     status: r && r.status !== "failed" ? "sent" : "failed",
     error: r?.error ?? (r ? null : "AI unavailable"),
   });
+  // Sales/qualification agents return score + stage: keep the lead in the CRM up to date.
+  const st = r?.structured;
+  if (r && r.status !== "failed" && st && typeof st.score === "number") {
+    const qualification = Object.fromEntries(["budget", "authority", "need", "timeline"].filter((k) => st[k]).map((k) => [k, String(st[k]).slice(0, 500)]));
+    await pgCrmStore(db)
+      .upsertLead(p.organizationId, {
+        title: `Visitante ${conv.visitor_id?.slice(0, 6) ?? conv.channel_type}`,
+        score: Math.max(0, Math.min(100, Math.round(st.score))),
+        stage: stageFromAgent(st.stage) ?? undefined,
+        source: conv.channel_type === "playground" ? "api" : (conv.channel_type as "web" | "whatsapp" | "email" | "api"),
+        conversationId: conv.id,
+        qualification,
+        lawfulBasis: "inbound_request",
+      })
+      .catch(() => undefined); // CRM bookkeeping never breaks the customer reply
+  }
+
   if (escalate) {
     await db.query(
       "update public.conversations set status = 'escalated', escalation_reason = $3, priority = case when priority = 'low' then 'normal' else priority end where id = $1 and organization_id = $2",

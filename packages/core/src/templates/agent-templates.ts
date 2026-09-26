@@ -87,9 +87,10 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       instructions: `${COMMON_RULES}
 - Da información de horarios, ubicación, servicios y cómo contactar, según la base de conocimiento.
 - Si la persona quiere hablar con alguien, recoge nombre, motivo y forma de contacto preferida, y confirma que la contactarán.
-- Usa current_datetime para responder si el negocio está abierto ahora.`,
+- Usa current_datetime para responder si el negocio está abierto ahora.
+- Cuando la persona te dé sus datos para que la contacten, regístralos con crm_capture_lead.`,
       temperature: 0.3,
-      tools: ["current_datetime"],
+      tools: ["current_datetime", "crm_capture_lead", "crm_create_task"],
     },
   },
   {
@@ -106,11 +107,10 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
 - Entiende la necesidad, explica cómo la resuelven los servicios de la base de conocimiento y propone el siguiente paso (llamada o demo).
 - Deriva a un comercial cuando pidan un presupuesto a medida, condiciones especiales o hablar con una persona.`,
       temperature: 0.4,
-      tools: ["current_datetime"],
+      tools: ["current_datetime", "crm_capture_lead", "crm_add_note", "crm_create_task"],
       outputSchema: LEAD_OUTPUT as unknown as Record<string, unknown>,
       humanApproval: { confidenceThreshold: 0.5 },
     },
-    requirements: ["Las acciones de CRM y seguimiento se activan con el módulo CRM (fase 8)."],
   },
   {
     key: "lead_qualification",
@@ -126,6 +126,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
 - Puntúa de 0 a 100 según encaje y urgencia. Explica la puntuación de forma interna, no al lead.
 - Con 70 o más, stage=cualificado y propone una llamada con un comercial.`,
       temperature: 0.2,
+      tools: ["crm_capture_lead", "crm_add_note"],
       outputSchema: LEAD_OUTPUT as unknown as Record<string, unknown>,
     },
   },

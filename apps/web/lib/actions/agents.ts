@@ -1,5 +1,6 @@
 "use server";
 
+import { limitMessage } from "@/lib/limit-message";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -12,7 +13,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 const uuid = z.string().uuid();
 
 function friendlyError(e: unknown): string {
-  if (e instanceof LimitExceededError) return `Has alcanzado el límite de tu plan (${e.key}: ${e.limit}).`;
+  if (e instanceof LimitExceededError) return limitMessage(e);
   if (e instanceof OrganizationSuspendedError) return "La organización está suspendida.";
   if (e instanceof NotFoundError) return "No encontrado.";
   if (e instanceof z.ZodError) return `Configuración no válida: ${e.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`;

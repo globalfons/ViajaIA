@@ -27,7 +27,7 @@ function Meter({ used, limit }: { used: number; limit: number | null | undefined
 export default async function UsagePage() {
   const [s, supabase] = await Promise.all([requireOrg("usage.read"), createSupabaseServerClient()]);
   const since = monthStartIso();
-  const [{ data: rows }, { data: org }, { data: agents }, { data: failures }] = await Promise.all([
+  const [{ data: rows }, { data: org }, { data: agents }, { data: failures }, { data: pendingLimits }] = await Promise.all([
     supabase.from("usage_daily").select("*").eq("organization_id", s.org.id).gte("day", since),
     supabase.from("organizations").select("limits, plans(limits)").eq("id", s.org.id).single(),
     supabase.from("agents").select("id, name").eq("organization_id", s.org.id),
@@ -38,6 +38,7 @@ export default async function UsagePage() {
       .eq("success", false)
       .order("created_at", { ascending: false })
       .limit(10),
+    supabase.from("limit_approvals").select("limit_key, created_at").eq("organization_id", s.org.id).eq("status", "pending"),
   ]);
   const summary = summarizeUsage((rows ?? []) as UsageDailyRow[]);
   const plan = (Array.isArray(org?.plans) ? org?.plans[0] : org?.plans) as { limits?: unknown } | null;
@@ -48,6 +49,11 @@ export default async function UsagePage() {
   return (
     <>
       <PageHeader title="Usage" description="Consumo del mes en curso (UTC)." />
+      {pendingLimits?.length ? (
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger/5 p-3 text-sm text-danger" role="alert">
+          Límite alcanzado ({pendingLimits.map((p) => p.limit_key).join(", ")}): el servicio está en pausa hasta que el administrador lo apruebe.
+        </div>
+      ) : null}
       {summary.unpricedModels.length ? (
         <div className="mb-4 flex items-start gap-2 rounded-md border border-warning/30 bg-warning/5 p-3 text-sm text-warning">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />

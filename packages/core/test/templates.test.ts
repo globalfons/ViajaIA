@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import { parseAgentConfig } from "../src/agents/config";
 import { AGENT_TEMPLATES } from "../src/templates/agent-templates";
 import { BUILTIN_TOOLS } from "../src/tools/builtin";
+import { CRM_TOOL_NAMES } from "../src/crm/tools";
 
 describe("agent templates", () => {
-  const builtin = new Set(BUILTIN_TOOLS.map((t) => t.name));
+  const builtin = new Set<string>([...BUILTIN_TOOLS.map((t) => t.name), ...CRM_TOOL_NAMES]);
 
   it("cover the products the agency sells", () => {
     expect(AGENT_TEMPLATES.map((t) => t.key)).toEqual(

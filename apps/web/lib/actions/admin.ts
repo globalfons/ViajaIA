@@ -104,7 +104,12 @@ export async function setOrganizationPlanAndLimits(form: FormData) {
   const admin = createSupabaseAdminClient();
   const { error } = await admin
     .from("organizations")
-    .update({ plan_code: plan.data, limits: parsedLimits.data, white_label_enabled: form.get("whiteLabel") === "on" })
+    .update({
+      plan_code: plan.data,
+      limits: parsedLimits.data,
+      white_label_enabled: form.get("whiteLabel") === "on",
+      limit_policy: form.get("limitPolicy") === "require_approval" ? "require_approval" : "block",
+    })
     .eq("id", organizationId);
   if (error) redirect(back(`/clients/${organizationId}`, { error: "No se pudo actualizar" }));
   await recordAudit({
@@ -266,4 +271,23 @@ export async function createUserForOrganization(form: FormData) {
   });
   revalidatePath(`/clients/${organizationId}`);
   redirect(back(`/clients/${organizationId}`, { ok: created.data.user ? "user_created" : "user_attached" }));
+}
+
+export async function decideLimitApprovalAction(form: FormData) {
+  const s = await requirePlatformAdmin();
+  const parsed = z
+    .object({ id: z.string().uuid(), decision: z.enum(["approve", "reject"]), extra: z.coerce.number().min(0).max(1e9).optional(), note: z.string().max(500).optional() })
+    .safeParse({ id: form.get("id"), decision: form.get("decision"), extra: form.get("extra") || undefined, note: form.get("note") || undefined });
+  if (!parsed.success) redirect(back("/admin", { error: "Datos no válidos" }));
+  const { decideLimitApproval } = await import("@dtn/db");
+  const { getPool } = await import("@dtn/db");
+  let orgId: string;
+  try {
+    orgId = await decideLimitApproval(getPool(), parsed.data.id, { approved: parsed.data.decision === "approve", extra: parsed.data.extra, userId: s.userId, note: parsed.data.note });
+  } catch {
+    redirect(back("/admin", { error: "La solicitud ya no está pendiente" }));
+  }
+  await recordAudit({ organizationId: orgId, actorId: s.userId, actorType: "platform_admin", action: `limit.${parsed.data.decision}`, targetType: "limit_approvals", targetId: parsed.data.id, metadata: { extra: parsed.data.extra ?? 0 } });
+  revalidatePath("/admin");
+  redirect(back("/admin", { ok: "saved" }));
 }

@@ -9,6 +9,7 @@ import {
   type UsageRecord,
 } from "@dtn/core";
 import type { Queryable } from "./pool";
+import { enforceLimit } from "./limits";
 
 /** Persists one row per LLM call. Used as LLMRouter.onUsage. */
 export function pgUsageSink(db: Queryable, requestId?: string) {
@@ -134,12 +135,9 @@ export class BudgetGuard {
         const { rows } = await this.db.query<{ cost_usd: string; tokens: string }>("select * from app.month_usage($1)", [ctx.organizationId]);
         return { cost: Number(rows[0]?.cost_usd ?? 0), tokens: Number(rows[0]?.tokens ?? 0) };
       });
-      if (limits.monthly_llm_cost_usd != null && usage.cost >= limits.monthly_llm_cost_usd) {
-        throw new BudgetExceededError("monthly_llm_cost_usd", limits.monthly_llm_cost_usd, usage.cost);
-      }
-      if (limits.monthly_tokens != null && usage.tokens >= limits.monthly_tokens) {
-        throw new BudgetExceededError("monthly_tokens", limits.monthly_tokens, usage.tokens);
-      }
+      // Honors the org policy: block, or raise an approval request for the admin.
+      await enforceLimit(this.db, ctx.organizationId, "monthly_llm_cost_usd", limits.monthly_llm_cost_usd, usage.cost);
+      await enforceLimit(this.db, ctx.organizationId, "monthly_tokens", limits.monthly_tokens, usage.tokens);
     }
 
     if (ctx.agentId) {

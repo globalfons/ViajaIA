@@ -9,3 +9,5 @@ export * from "./knowledge";
 export * from "./conversations";
 export * from "./secrets";
 export * from "./solutions";
+export * from "./crm";
+export * from "./limits";

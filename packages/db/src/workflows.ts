@@ -1,5 +1,6 @@
 import {
   BUILTIN_TOOLS,
+  createCrmTools,
   executeTool,
   initRunState,
   validateWorkflowGraph,
@@ -14,6 +15,9 @@ import {
 import { runAgent, assertOrgActive, NotFoundError, type RunAgentParams } from "./agents";
 import { enqueueJob } from "./jobs";
 import { secretResolver } from "./secrets";
+import { enforceLimit } from "./limits";
+import { effectiveLimits } from "@dtn/core";
+import { pgCrmStore } from "./crm";
 import type { Queryable } from "./pool";
 
 /**
@@ -164,6 +168,14 @@ export async function startWorkflowRun(
   if (!version || wf.status === "archived") throw new NotFoundError("Published workflow");
   const graph = parseGraph(await getWorkflowGraph(db, organizationId, workflowId, version));
   await assertAgentsBelongToOrg(db, organizationId, graph);
+  const lim = await db.query<{ limits: unknown; plan_limits: unknown; runs: number }>(
+    `select o.limits, p.limits as plan_limits,
+       (select count(*)::int from public.workflow_runs r where r.organization_id = o.id and r.created_at >= date_trunc('month', now() at time zone 'UTC') at time zone 'UTC') as runs
+     from public.organizations o left join public.plans p on p.code = o.plan_code where o.id = $1`,
+    [organizationId],
+  );
+  const l = effectiveLimits(lim.rows[0]?.plan_limits, lim.rows[0]?.limits);
+  await enforceLimit(db, organizationId, "max_workflow_runs_per_month", l.max_workflow_runs_per_month, lim.rows[0]?.runs ?? 0, 1);
   const { rows } = await db.query<{ id: string }>(
     `insert into public.workflow_runs (organization_id, workflow_id, version, trigger, input, created_by)
      values ($1, $2, $3, $4, $5, $6) returning id`,
@@ -189,7 +201,7 @@ export interface WorkflowRuntimeOptions {
 function engineDeps(db: Queryable, organizationId: string, runId: string, graph: WorkflowGraph, opts: WorkflowRuntimeOptions): EngineDeps {
   opts = { ...opts, getSecret: opts.getSecret ?? secretResolver(db) };
   const nodeTypes = new Map(graph.nodes.map((n) => [n.id, n.type]));
-  const tools = new Map([...BUILTIN_TOOLS, ...(opts.extraTools ?? [])].map((t) => [t.name, t]));
+  const tools = new Map([...BUILTIN_TOOLS, ...createCrmTools(pgCrmStore(db)), ...(opts.extraTools ?? [])].map((t) => [t.name, t]));
   return {
     runAgent: async ({ agentId, message, nodeId }) => {
       const { runId: agentRunId, result } = await runAgent({

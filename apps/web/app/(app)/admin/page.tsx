@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { SetupChecklist } from "@/components/setup-checklist";
-import { updatePlatformSettings, upsertModel, upsertPlan } from "@/lib/actions/admin";
+import { decideLimitApprovalAction, updatePlatformSettings, upsertModel, upsertPlan } from "@/lib/actions/admin";
 import { Select } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -18,12 +18,13 @@ export const metadata = { title: "Platform Admin" };
 export default async function AdminPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   await requirePlatformAdmin();
   const [sp, supabase] = await Promise.all([searchParams, createSupabaseServerClient()]);
-  const [{ data: plans }, { data: settings }, { count: active }, { count: suspended }, { data: models }] = await Promise.all([
+  const [{ data: plans }, { data: settings }, { count: active }, { count: suspended }, { data: models }, { data: limitRequests }] = await Promise.all([
     supabase.from("plans").select("*").order("sort_order"),
     supabase.from("platform_settings").select("allow_self_signup").single(),
     supabase.from("organizations").select("id", { count: "exact", head: true }).eq("status", "active"),
     supabase.from("organizations").select("id", { count: "exact", head: true }).eq("status", "suspended"),
     supabase.from("llm_models").select("*").order("provider").order("model"),
+    supabase.from("limit_approvals").select("id, limit_key, limit_value, used_value, created_at, organizations(name)").eq("status", "pending").order("created_at"),
   ]);
 
   return (
@@ -52,6 +53,37 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </CardHeader>
         </Card>
       </div>
+
+      {limitRequests?.length ? (
+        <Card className="mb-6 border-warning/40">
+          <CardHeader>
+            <CardTitle>Límites alcanzados: pendientes de aprobación</CardTitle>
+            <CardDescription>Clientes con la política «pedir aprobación». Aprobar concede margen extra este mes (misma unidad que el límite).</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {limitRequests.map((r) => {
+              const org = (Array.isArray(r.organizations) ? r.organizations[0] : r.organizations) as { name: string } | null;
+              return (
+                <form key={r.id} action={decideLimitApprovalAction} className="flex flex-wrap items-center gap-2 rounded-md border p-3 text-sm">
+                  <input type="hidden" name="id" value={r.id} />
+                  <span className="font-medium">{org?.name}</span>
+                  <code className="text-xs">{r.limit_key}</code>
+                  <span className="text-muted-foreground">
+                    {Number(r.used_value).toFixed(2)} / {Number(r.limit_value).toFixed(2)}
+                  </span>
+                  <Input name="extra" type="number" min={0} step="any" required placeholder="Margen extra" className="h-8 w-36" aria-label="Margen extra" />
+                  <Button type="submit" name="decision" value="approve" size="sm">
+                    Aprobar
+                  </Button>
+                  <Button type="submit" name="decision" value="reject" size="sm" variant="outline" formNoValidate>
+                    Rechazar
+                  </Button>
+                </form>
+              );
+            })}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-6">

@@ -37,8 +37,17 @@ http
         const excerpt = candidate && [...words(question)].some((w) => words(candidate).has(w)) ? candidate : undefined;
         const text = excerpt ? `Según la documentación: ${excerpt.slice(0, 300)} [1]` : "No encuentro esa información en la documentación.";
         // Honour structured output requests (e.g. the Customer Support template schema).
+        // Fields are filled from the requested schema (support: answer/category; sales: reply/score/stage).
+        const props = json.response_format?.json_schema?.schema?.properties ?? {};
+        const buying = /presupuesto|contratar|comprar|precio/i.test(question);
         const content = json.response_format?.type === "json_schema"
-          ? JSON.stringify({ answer: text, category: "informacion", confidence: excerpt ? 0.9 : 0.2, needs_human: !excerpt, ...(excerpt ? {} : { reason: "La documentación no cubre esta consulta" }) })
+          ? JSON.stringify({
+              ...("answer" in props ? { answer: text, category: "informacion" } : {}),
+              ...("reply" in props ? { reply: text, score: buying ? 80 : 30, stage: buying ? "cualificado" : "cualificando", need: buying ? question.slice(0, 120) : null } : {}),
+              confidence: excerpt || buying ? 0.9 : 0.2,
+              needs_human: !(excerpt || buying),
+              ...(excerpt || buying ? {} : { reason: "La documentación no cubre esta consulta" }),
+            })
           : text;
         return res.end(JSON.stringify({ choices: [{ message: { content }, finish_reason: "stop" }], usage: { prompt_tokens: 120, completion_tokens: 30 } }));
       }

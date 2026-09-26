@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { BUILTIN_TOOLS } from "@dtn/core/tools/builtin";
+import { createCrmTools } from "@dtn/core/crm/tools";
 import { WorkflowBuilder } from "@/components/workflows/workflow-builder";
 import { requireOrg } from "@/lib/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -26,7 +27,7 @@ export default async function WorkflowPage({ params }: { params: Promise<{ id: s
       publishedVersion={wf.published_version}
       initialGraph={version?.graph ?? { nodes: [], edges: [] }}
       agents={agents ?? []}
-      tools={BUILTIN_TOOLS.map((t) => ({ name: t.name, description: t.description }))}
+      tools={[...BUILTIN_TOOLS, ...createCrmTools({} as never)].map((t) => ({ name: t.name, description: t.description }))}
       canEdit={s.can("workflows.write")}
       canRun={s.can("workflows.run")}
       isPlatformAdmin={s.isPlatformAdmin}

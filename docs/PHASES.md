@@ -213,3 +213,37 @@ bajo de suplantación de contenido; pasará a *flash* por cookie. La respuesta a
 (5 s), sin *realtime*.
 **Siguiente:** web pública + demo honesta → catálogo de soluciones y «Activar solución» → Leads/CRM → WhatsApp →
 límites con aprobación → Stripe.
+
+## Credenciales cifradas ✅
+Migración `0007`: tabla `secrets` por organización con AES-256-GCM (`SECRETS_ENCRYPTION_KEYS`, rotación con varias
+versiones de clave; AAD = `orgId/nombre`, así que un cifrado no se puede mover a otra organización). Owners y admins ven solo
+los metadatos (nombre y últimos 4 caracteres). Las tools obtienen los valores en el servidor (`getSecret`) y el modelo
+nunca los ve.
+
+## Catálogo de soluciones + «Activar solución» ✅
+10 soluciones versionadas (`SOL-…-v1`) en `packages/core/src/solutions/catalog.ts`, con requisitos, integraciones
+necesarias y campos de configuración. La activación es **transaccional**: crea agentes activos, la knowledge base,
+el workflow publicado y el canal web, y registra la instancia en `solution_instances` (migración `0008`). Si falta un
+requisito (modelo de chat o de embeddings), no se crea nada. E2E `e2e/solutions.mjs` 6/6.
+
+## Leads / CRM + política de límites ✅
+**Implementado**
+- Migración `0009`: `companies`, `leads` (etapas NEW→WON/LOST, puntuación, valor, **base legal RGPD obligatoria**,
+  consentimiento de marketing con fecha), `opportunities`, `activities` y `tasks`, con RLS por organización.
+- Tools del agente `crm_capture_lead`, `crm_add_note` y `crm_create_task` (con allowlist por agente, incluidas en las
+  plantillas de ventas, cualificación y recepción). Las conversaciones con salida estructurada que incluye `score`
+  registran o actualizan **un único lead por conversación**, con base legal «solicitud del propio interesado».
+- UI `/leads`: tablero por etapas con totales, mover etapa, alta manual con base legal y ficha con actividad, notas,
+  tareas, oportunidad (ganada o perdida sincronizada con la etapa), cualificación BANT y enlace a la conversación.
+  La plataforma **no envía comunicaciones**; el CRM solo registra contactos entrantes o consentidos.
+- Adaptador `HubSpotSync` (API v3 de contactos) listo para usar con un token guardado en credenciales; no se activa solo.
+- Migración `0010`: política por cliente `limit_policy` = `block` | `require_approval`. Con «pedir aprobación», al
+  alcanzar un límite (coste LLM mensual, tokens o ejecuciones de workflow) se crea **una** solicitud pendiente por
+  límite y mes; el servicio queda en pausa (banner en `/usage`, código API `limit_approval_required`) hasta que el
+  Platform Admin concede margen extra o rechaza en `/admin`.
+
+**Tests:** core 185 · BD 75 (CRM 11 y límites 5, incluido el aislamiento entre organizaciones) · worker 6 · web 41 ·
+E2E `e2e/crm.mjs` 7/7 (chat → lead cualificado con puntuación 80 → ficha → tablero → lead manual → límite con
+aprobación → aprobación del admin).
+**Bugs corregidos:** en el alta automática, la actividad decía «Lead creado» en lugar de indicar su origen; el campo de
+tarea quedaba aplastado en pantallas estrechas; el estado de la oportunidad se mostraba en inglés.

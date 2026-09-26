@@ -25,7 +25,7 @@ export default async function ClientDetailPage({
 
   const { data: org } = await supabase
     .from("organizations")
-    .select("id, name, slug, status, suspended_reason, plan_code, limits, white_label_enabled, created_at")
+    .select("id, name, slug, status, suspended_reason, plan_code, limits, limit_policy, white_label_enabled, created_at")
     .eq("id", id)
     .maybeSingle();
   if (!org) notFound();
@@ -118,6 +118,13 @@ export default async function ClientDetailPage({
                   <Label htmlFor="limits">Límites (JSON)</Label>
                   <Textarea id="limits" name="limits" rows={5} className="font-mono text-xs" defaultValue={JSON.stringify(org.limits ?? {}, null, 2)} />
                   <p className="text-xs text-muted-foreground">Claves: {Object.keys(LIMIT_KEYS).join(", ")}</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="policy">Al alcanzar un límite</Label>
+                  <Select id="policy" name="limitPolicy" defaultValue={org.limit_policy}>
+                    <option value="block">Bloquear</option>
+                    <option value="require_approval">Pedir aprobación al administrador</option>
+                  </Select>
                 </div>
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" name="whiteLabel" defaultChecked={org.white_label_enabled} /> White-label activado

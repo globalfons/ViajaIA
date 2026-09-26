@@ -34,7 +34,7 @@ function errorResponse(e: unknown, requestId: string, ctx: Record<string, unknow
     );
   if (e instanceof NotFoundError) return NextResponse.json({ error: { code: "not_found", message: e.message } }, { status: 404, headers });
   if (e instanceof LimitExceededError)
-    return NextResponse.json({ error: { code: "limit_exceeded", message: e.message, details: { key: e.key, limit: e.limit } } }, { status: 402, headers });
+    return NextResponse.json({ error: { code: e.name === "LimitApprovalRequiredError" ? "limit_approval_required" : "limit_exceeded", message: e.message, details: { key: e.key, limit: e.limit } } }, { status: 402, headers });
   if (e instanceof OrganizationSuspendedError) return NextResponse.json({ error: { code: "organization_suspended", message: e.message } }, { status: 403, headers });
   captureError(e, { requestId, ...ctx });
   return NextResponse.json({ error: { code: "internal_error", message: "Internal server error" } }, { status: 500, headers });
