@@ -8,9 +8,10 @@ sin botones que simulen una conexión.
 | Chat web (widget) | Disponible | Integrations → Chat web |
 | WhatsApp Business (Cloud API de Meta) | Disponible (si la agencia configura su app de Meta) | Integrations → WhatsApp Business |
 | Email (entrada por webhook, salida con Resend) | Disponible | Integrations → Email |
+| Google Calendar (OAuth) | Disponible (si la agencia configura su cliente OAuth) | Integrations → Google Calendar |
 | Proveedores LLM | Disponibles según las variables de entorno | `.env` del servidor |
 | API REST v1 | Disponible | Settings → API keys |
-| Telegram, Slack, Microsoft Calendar, MCP | Próximamente | — |
+| Telegram, Slack, Microsoft Calendar, HubSpot (UI), MCP | Próximamente | — |
 
 ## Credenciales
 
@@ -78,9 +79,38 @@ caracteres.
 - Las respuestas mantienen el hilo (`Re:` e `In-Reply-To`/`References`) y se elimina el texto citado del correo
   anterior antes de pasárselo al agente.
 
+## Google Calendar
+
+**Una vez por agencia.** En Google Cloud crea un cliente OAuth (tipo *Aplicación web*), añade la URI de retorno
+`{APP_URL}/api/integrations/google/callback` y define `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` en el servidor. Para
+producción, Google exige verificar la app porque usa permisos de Calendar.
+
+**Por cliente.** Integrations → Google Calendar → «Conectar con Google». Se piden solo los permisos
+`calendar.events` y `calendar.freebusy` (más `openid email` para mostrar la cuenta). El *refresh token* se guarda cifrado
+(`GOOGLE_CALENDAR_REFRESH_TOKEN`) y en la tabla `integration_connections` solo quedan la cuenta, el estado y el horario.
+
+**Seguridad del flujo.** El `state` es un valor aleatorio que se guarda en una cookie `httpOnly` limitada a la ruta del
+callback. En el callback se comprueba que coincide con esa cookie y que la organización activa es la misma que inició la
+conexión (protección contra CSRF y confusión de cuentas). Al desconectar, el token se revoca en Google y se borra.
+
+**Tools para agentes**
+- `calendar_find_slots` (lectura): huecos libres en el horario configurado (zona horaria, días, franja, duración y
+  antelación mínima), cruzados con la disponibilidad real (`freeBusy`).
+- `calendar_create_appointment` (escritura): justo antes de escribir, vuelve a comprobar el horario y la disponibilidad.
+  Crea el evento sin invitados y con `sendUpdates=none`, así que Google no envía correos. Si el cliente lo configura en
+  el agente, puede requerir aprobación humana.
+- Si no hay calendario conectado, las tools lo dicen y el agente ofrece tomar los datos. Nunca inventa huecos.
+- Si Google revoca el acceso, la conexión pasa a «Requiere reconexión» en Integrations.
+
+Microsoft Calendar todavía no está implementado y aparece como «Próximamente».
+
 ## Pruebas
 
-`e2e/fake-providers.mjs` es un **doble de pruebas** que habla los formatos HTTP de OpenAI, Meta Graph y Resend, y no
+`e2e/fake-providers.mjs` es un **doble de pruebas** que habla los formatos HTTP de OpenAI, Meta Graph, Resend y Google
+(OAuth y Calendar), y no
 contacta con ningún servicio real. `e2e/channels.mjs` firma los webhooks igual que Meta y comprueba el recorrido completo:
 conexión del número, handshake, firma falsificada, respuesta basada en la documentación, idempotencia ante reintentos,
 respuesta humana, borrador de email editado y enviado en el mismo hilo, y token incorrecto.
+`e2e/calendar.mjs` conecta Google por OAuth, rechaza un callback con `state` falsificado, guarda el horario, y el agente
+consulta huecos y reserva la cita desde el chat. Después comprueba la trazabilidad de las tools y la revocación al
+desconectar.

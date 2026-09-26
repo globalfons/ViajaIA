@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { agentConfigSchema } from "@dtn/core/agents/config";
-import { BUILTIN_TOOLS } from "@dtn/core/tools/builtin";
-import { createCrmTools } from "@dtn/core/crm/tools";
+import { platformToolCatalog } from "@dtn/core/tools/catalog";
 import { AgentEditor } from "@/components/agents/agent-editor";
 import { Playground } from "@/components/agents/playground";
 import { PageHeader } from "@/components/layout/page-header";
@@ -51,7 +50,7 @@ export default async function AgentPage({
   const knowledgeBases = kbs ?? [];
   const config = agentConfigSchema.parse({ ...(agent.config as object), name: agent.name });
   // CRM tools are listed for metadata only (the store is bound server-side at run time).
-  const tools = [...BUILTIN_TOOLS, ...createCrmTools({} as never)].map((t) => ({ name: t.name, description: t.description, risk: t.risk, alwaysRequireApproval: Boolean(t.alwaysRequireApproval) }));
+  const tools = platformToolCatalog().map((t) => ({ name: t.name, description: t.description, risk: t.risk, alwaysRequireApproval: Boolean(t.alwaysRequireApproval) }));
   const canEdit = s.can("agents.write");
 
   return (

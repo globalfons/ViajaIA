@@ -1,6 +1,7 @@
 import {
   AgentRuntime,
   BUILTIN_TOOLS,
+  createCalendarTools,
   createCrmTools,
   LLMRouter,
   providersFromEnv,
@@ -16,6 +17,7 @@ import { BudgetGuard, loadPricing, pgUsageSink, recordToolInvocation } from "./u
 import { searchKnowledge } from "./knowledge";
 import { secretResolver } from "./secrets";
 import { pgCrmStore } from "./crm";
+import { calendarResolver } from "./calendar";
 
 export interface RuntimeFactoryOptions {
   db: Queryable;
@@ -40,7 +42,7 @@ export async function createAgentRuntime(opts: RuntimeFactoryOptions) {
   });
   const tools = new ToolRegistry();
   // Registered for every agent; each agent's allowlist decides what it may use.
-  for (const t of [...BUILTIN_TOOLS, ...createCrmTools(pgCrmStore(opts.db)), ...(opts.extraTools ?? [])]) tools.register(t);
+  for (const t of [...BUILTIN_TOOLS, ...createCrmTools(pgCrmStore(opts.db)), ...createCalendarTools(calendarResolver(opts.db, opts.env ?? process.env)), ...(opts.extraTools ?? [])]) tools.register(t);
   const runtime = new AgentRuntime({
     router,
     tools,

@@ -8,6 +8,8 @@ import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { channelStatusAction, createWebChannelAction } from "@/lib/actions/conversations";
 import { createWhatsAppChannelAction, emailAutoSendAction } from "@/lib/actions/channels";
 import { EmailChannelForm } from "@/components/integrations/email-channel-form";
+import { calendarSettingsAction, disconnectCalendarAction } from "@/lib/actions/calendar";
+import { normalizeCalendarSettings } from "@dtn/core/calendar/slots";
 import { integrationCatalog } from "@/lib/integrations";
 import { deleteSecretAction, setSecretAction } from "@/lib/actions/secrets";
 import { formatDate } from "@/lib/utils";
@@ -25,13 +27,17 @@ const STATE = {
 
 export default async function IntegrationsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const [s, sp, supabase, h] = await Promise.all([requireOrg("integrations.read"), searchParams, createSupabaseServerClient(), headers()]);
-  const [{ data: channels }, { data: agents }, { data: secrets }] = await Promise.all([
+  const [{ data: channels }, { data: agents }, { data: secrets }, { data: calendarRows }] = await Promise.all([
     supabase.from("channels").select("id, name, type, status, public_key, allowed_origins, agent_id, config, agents(name)").eq("organization_id", s.org.id).order("created_at"),
     supabase.from("agents").select("id, name, status").eq("organization_id", s.org.id).neq("status", "archived").order("name"),
     s.can("secrets.manage")
       ? supabase.from("secrets").select("name, hint, updated_at").eq("organization_id", s.org.id).order("name")
       : Promise.resolve({ data: [] as { name: string; hint: string | null; updated_at: string }[] }),
+    supabase.from("integration_connections").select("status, account, settings, last_error, created_at").eq("organization_id", s.org.id).eq("provider", "google_calendar").limit(1),
   ]);
+  const calendar = calendarRows?.[0] ?? null;
+  const calSettings = normalizeCalendarSettings(calendar?.settings);
+  const googleReady = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
   const appUrl = process.env.APP_URL ?? `https://${h.get("host")}`;
   const catalog = integrationCatalog();
   const manage = s.can("integrations.manage");
@@ -54,7 +60,7 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
     <>
       <PageHeader title="Integrations" description="Canales y servicios conectados a tus agentes." />
       <Flash
-        message={{ channel: "Canal creado.", secret: "Credencial guardada (cifrada).", secret_deleted: "Credencial eliminada." }[sp.ok ?? ""]}
+        message={{ channel: "Canal creado.", secret: "Credencial guardada (cifrada).", secret_deleted: "Credencial eliminada.", calendar: "Google Calendar conectado.", calendar_disconnected: "Google Calendar desconectado y acceso revocado." }[sp.ok ?? ""]}
         ok={sp.ok === "saved" ? "saved" : undefined}
         error={sp.error}
       />
@@ -270,6 +276,94 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
         </CardContent>
       </Card>
 
+      <Card className="mb-6">
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle>Google Calendar</CardTitle>
+            <Badge variant={calendar?.status === "connected" ? "success" : calendar ? "danger" : googleReady ? "secondary" : "warning"}>
+              {calendar?.status === "connected" ? "Conectado" : calendar ? "Requiere reconexión" : googleReady ? "Sin conectar" : "Pendiente de la agencia"}
+            </Badge>
+          </div>
+          <CardDescription>
+            Los agentes de citas consultan huecos libres (tools <code>calendar_find_slots</code> y <code>calendar_create_appointment</code>) y reservan
+            dentro de tu horario. Permisos mínimos (eventos y disponibilidad); Google no envía invitaciones en tu nombre.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!googleReady ? (
+            <p className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm">
+              La agencia debe configurar su cliente OAuth de Google (<code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>) con la URL de retorno{" "}
+              <code className="break-all">{appUrl}/api/integrations/google/callback</code>.
+            </p>
+          ) : null}
+          {calendar ? (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <p>
+                  Cuenta: <strong>{calendar.account ?? "—"}</strong> · conectado {formatDate(calendar.created_at)}
+                  {calendar.last_error ? <span className="block text-danger">{calendar.last_error}</span> : null}
+                </p>
+                {manage ? (
+                  <div className="flex gap-2">
+                    {calendar.status !== "connected" && googleReady ? (
+                      <a href="/api/integrations/google/start" className="rounded-md border px-3 py-1.5 text-sm">
+                        Reconectar
+                      </a>
+                    ) : null}
+                    <form action={disconnectCalendarAction}>
+                      <Button type="submit" size="sm" variant="outline">
+                        Desconectar
+                      </Button>
+                    </form>
+                  </div>
+                ) : null}
+              </div>
+              {manage ? (
+                <form action={calendarSettingsAction} className="grid gap-3 sm:grid-cols-3" aria-label="Horario de citas">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cal-tz">Zona horaria</Label>
+                    <Input id="cal-tz" name="timeZone" required defaultValue={calSettings.timeZone} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cal-start">Desde</Label>
+                    <Input id="cal-start" name="start" type="time" required defaultValue={calSettings.start} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cal-end">Hasta</Label>
+                    <Input id="cal-end" name="end" type="time" required defaultValue={calSettings.end} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cal-slot">Duración de la cita (min)</Label>
+                    <Input id="cal-slot" name="slotMinutes" type="number" min={10} max={240} required defaultValue={calSettings.slotMinutes} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cal-notice">Antelación mínima (min)</Label>
+                    <Input id="cal-notice" name="minNoticeMinutes" type="number" min={0} max={10080} required defaultValue={calSettings.minNoticeMinutes} />
+                  </div>
+                  <fieldset className="space-y-1.5">
+                    <legend className="text-sm font-medium">Días</legend>
+                    <div className="flex flex-wrap gap-2 text-sm">
+                      {["D", "L", "M", "X", "J", "V", "S"].map((d, i) => (
+                        <label key={d} className="flex items-center gap-1">
+                          <input type="checkbox" name="days" value={i} defaultChecked={calSettings.days.includes(i)} aria-label={`Día ${d}`} /> {d}
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                  <div className="sm:col-span-3">
+                    <Button type="submit">Guardar horario</Button>
+                  </div>
+                </form>
+              ) : null}
+            </>
+          ) : manage && googleReady ? (
+            <a href="/api/integrations/google/start" className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground">
+              Conectar con Google
+            </a>
+          ) : null}
+        </CardContent>
+      </Card>
+
       {s.can("secrets.manage") ? (
         <Card className="mb-6">
           <CardHeader>
@@ -311,7 +405,7 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {catalog
-          .filter((i) => !["web", "whatsapp", "email"].includes(i.key))
+          .filter((i) => !["web", "whatsapp", "email", "gcal"].includes(i.key))
           .map((i) => (
             <Card key={i.key} className={i.state === "coming_soon" ? "opacity-75" : undefined}>
               <CardHeader>

@@ -12,3 +12,4 @@ export * from "./solutions";
 export * from "./crm";
 export * from "./limits";
 export * from "./external-channels";
+export * from "./calendar";

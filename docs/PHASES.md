@@ -262,3 +262,13 @@ tarea quedaba aplastado en pantallas estrechas; el estado de la oportunidad se m
 - Documentación: `docs/INTEGRATIONS.md`.
 
 **Tests:** core 194 (9 de canales) · BD 82 (7 de canales, incluido el aislamiento) · E2E `e2e/channels.mjs` 9/9.
+
+## Google Calendar ✅
+**Implementado:** OAuth 2.0 con permisos mínimos y `state` ligado a la cookie y a la organización; refresh token cifrado;
+migración `0012` (`integration_connections`, solo metadatos, escritura solo por el servidor); horario de citas
+configurable (zona horaria con cambio de hora, días, franja, duración y antelación); tools `calendar_find_slots` y
+`calendar_create_appointment` (vuelve a validar antes de escribir y no envía invitaciones); plantilla y solución
+«AI Appointment Agent» con reserva real; desconexión con revocación en Google; conexión marcada para reconectar si
+Google revoca el acceso.
+**Tests:** core 203 (9 de calendario) · BD 87 (5 de calendario) · E2E `e2e/calendar.mjs` 8/8.
+**Pendiente:** Microsoft Calendar (Próximamente); cambiar y cancelar citas.

@@ -24,3 +24,6 @@ export * from "./crm/tools";
 export * from "./crm/hubspot";
 export * from "./channels/whatsapp";
 export * from "./channels/email";
+export * from "./calendar/slots";
+export * from "./calendar/google";
+export * from "./calendar/tools";

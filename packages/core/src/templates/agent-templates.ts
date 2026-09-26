@@ -172,12 +172,13 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       systemPrompt: "Eres el asistente de citas de {{company_name}}.",
       instructions: `${COMMON_RULES}
 - Usa current_datetime antes de interpretar fechas relativas ("mañana", "el martes").
-- Antes de crear, cambiar o cancelar una cita, confirma con la persona fecha, hora, servicio y nombre.`,
+- Consulta los huecos libres con calendar_find_slots y ofrece como máximo tres opciones; no inventes horarios.
+- Antes de reservar con calendar_create_appointment, confirma con la persona fecha, hora, servicio y nombre.
+- Si no hay calendario conectado, recoge nombre, contacto y preferencia horaria con crm_capture_lead para que el equipo llame.`,
       temperature: 0.2,
-      tools: ["current_datetime"],
-      humanApproval: { allWriteTools: true },
+      tools: ["current_datetime", "calendar_find_slots", "calendar_create_appointment", "crm_capture_lead"],
     },
-    requirements: ["Las tools de calendario (Google/Microsoft) se activan en la fase 9."],
+    requirements: ["Conecta Google Calendar en Integrations para reservar automáticamente."],
   },
   {
     key: "marketing_agent",

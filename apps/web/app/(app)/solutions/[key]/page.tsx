@@ -14,7 +14,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 const NEEDS: Record<string, string> = {
   whatsapp: "Integración de WhatsApp Business (Integrations)",
   email: "Integración de email",
-  calendar: "Integración de calendario (Google/Microsoft): la reserva automática aún no está disponible; el agente recoge y confirma los datos",
+  calendar: "Google Calendar conectado (Integrations). Sin calendario, el agente recoge los datos y el equipo confirma la cita",
 };
 
 export default async function SolutionPage({ params, searchParams }: { params: Promise<{ key: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
@@ -24,11 +24,16 @@ export default async function SolutionPage({ params, searchParams }: { params: P
   const { data: models } = await supabase.from("llm_models").select("provider, model, kind").eq("enabled", true);
   const chat = (models ?? []).filter((m) => m.kind === "chat").map((m) => `${m.provider}:${m.model}`);
   const emb = (models ?? []).filter((m) => m.kind === "embedding").map((m) => `${m.provider}:${m.model}`);
-  const { data: waChannel } = await supabase.from("channels").select("id").eq("organization_id", s.org.id).eq("type", "whatsapp").limit(1);
+  const [{ data: waChannel }, { data: emChannel }, { data: calendar }] = await Promise.all([
+    supabase.from("channels").select("id").eq("organization_id", s.org.id).eq("type", "whatsapp").limit(1),
+    supabase.from("channels").select("id").eq("organization_id", s.org.id).eq("type", "email").limit(1),
+    supabase.from("integration_connections").select("status").eq("organization_id", s.org.id).eq("provider", "google_calendar").limit(1),
+  ]);
+  const connected = { whatsapp: Boolean(waChannel?.length), email: Boolean(emChannel?.length), calendar: calendar?.[0]?.status === "connected" };
   const checks = [
     { ok: chat.length > 0, label: "Modelo de chat activo en la plataforma" },
     ...(sol.knowledgeBase ? [{ ok: emb.length > 0, label: "Modelo de embeddings activo (1536 dimensiones)" }] : []),
-    ...sol.needsIntegrations.map((n) => ({ ok: n === "whatsapp" ? Boolean(waChannel?.length) : false, label: NEEDS[n] ?? n })),
+    ...sol.needsIntegrations.map((n) => ({ ok: connected[n], label: NEEDS[n] ?? n })),
   ];
   const canActivate = s.can("agents.write") && chat.length > 0 && (!sol.knowledgeBase || emb.length > 0);
 

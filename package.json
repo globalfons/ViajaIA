@@ -14,7 +14,7 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
-    "e2e": "node e2e/seed.mjs && node e2e/journey.mjs && node e2e/responsive.mjs && node e2e/mvp.mjs && node e2e/solutions.mjs && node e2e/crm.mjs && node e2e/channels.mjs",
+    "e2e": "node e2e/seed.mjs && node e2e/journey.mjs && node e2e/responsive.mjs && node e2e/mvp.mjs && node e2e/solutions.mjs && node e2e/crm.mjs && node e2e/channels.mjs && node e2e/calendar.mjs",
     "e2e:stack": "sh docker/e2e/up.sh",
     "e2e:mvp": "node e2e/seed.mjs && node e2e/mvp.mjs"
   },

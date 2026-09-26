@@ -59,7 +59,7 @@ await step(6, "Credenciales: se guardan cifradas y nunca se muestran", async () 
   await form.getByLabel("Valor").fill("tok-e2e-very-secret-value");
   await form.getByRole("button", { name: "Guardar" }).click();
   await admin.getByText("Credencial guardada (cifrada).").waitFor();
-  await admin.getByText("CRM_TOKEN").waitFor();
+  await admin.locator("li", { hasText: "CRM_TOKEN" }).waitFor();
   const html = await admin.content();
   if (html.includes("very-secret")) throw new Error("secret value rendered in the page");
   await admin.getByText("…alue").waitFor();

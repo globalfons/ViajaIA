@@ -1,5 +1,6 @@
 import {
   BUILTIN_TOOLS,
+  createCalendarTools,
   createCrmTools,
   executeTool,
   initRunState,
@@ -18,6 +19,7 @@ import { secretResolver } from "./secrets";
 import { enforceLimit } from "./limits";
 import { effectiveLimits } from "@dtn/core";
 import { pgCrmStore } from "./crm";
+import { calendarResolver } from "./calendar";
 import type { Queryable } from "./pool";
 
 /**
@@ -201,7 +203,7 @@ export interface WorkflowRuntimeOptions {
 function engineDeps(db: Queryable, organizationId: string, runId: string, graph: WorkflowGraph, opts: WorkflowRuntimeOptions): EngineDeps {
   opts = { ...opts, getSecret: opts.getSecret ?? secretResolver(db) };
   const nodeTypes = new Map(graph.nodes.map((n) => [n.id, n.type]));
-  const tools = new Map([...BUILTIN_TOOLS, ...createCrmTools(pgCrmStore(db)), ...(opts.extraTools ?? [])].map((t) => [t.name, t]));
+  const tools = new Map([...BUILTIN_TOOLS, ...createCrmTools(pgCrmStore(db)), ...createCalendarTools(calendarResolver(db)), ...(opts.extraTools ?? [])].map((t) => [t.name, t]));
   return {
     runAgent: async ({ agentId, message, nodeId }) => {
       const { runId: agentRunId, result } = await runAgent({
